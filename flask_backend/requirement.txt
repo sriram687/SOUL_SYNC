@@ -1,0 +1,52 @@
+mongo_uri = os.getenv("MONGO_URI")
+client = pymongo.MongoClient(mongo_uri)
+db = client.get_database("mental_health")
+
+
+MongoDB Configuration Summary
+Created a Cluster
+
+You set up a free shared cluster (Cluster0) in MongoDB Atlas for development purposes.
+Database and Collection
+
+You either created or referenced the mental_health database for your project.
+Connection URI
+
+You generated a connection string:
+mongodb+srv://sriram:Thehope123@cluster0.tovxt.mongodb.net/mental_health?retryWrites=true&w=majority
+Environment Configuration
+
+You stored the connection URI in a .env file as MONGO_URI for better security and configuration management:
+plaintext
+Copy
+Edit
+MONGO_URI=mongodb+srv://sriram:Thehope123@cluster0.tovxt.mongodb.net/mental_health?retryWrites=true&w=majority
+JWT_SECRET_KEY=your_jwt_secret_key
+Database Access
+
+You created a user with the following permissions:
+Username: sriram
+Password: Thehope123
+databasename:mental_health
+
+Role: Read and Write access to the database.
+IP Whitelisting
+
+You allowed access from any IP address (0.0.0.0/0) to ensure easy connection during development.
+Integrated Flask with MongoDB
+
+You modified app.py to:
+Import and use pymongo for MongoDB connection.
+Access the MongoDB database using:
+python
+Copy
+Edit
+
+
+mongo_uri = os.getenv("MONGO_URI")
+client = pymongo.MongoClient(mongo_uri)
+db = client.get_database("mental_health")
+Next Steps (Optional)
+
+Create collections for users, messages, or chat history.
+Store user registration and login data in MongoDB (instead of the in-memory users dictionary in your Flask app).

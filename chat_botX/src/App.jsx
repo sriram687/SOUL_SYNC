@@ -8,6 +8,7 @@ import Resources from "./components/Resources";
 
 
 
+
 function App(){
   return (
     <Router>
@@ -17,6 +18,7 @@ function App(){
       <Route path='/register' element={<Register/>}/>
       <Route path='/login' element={<Login/>}/>
       <Route path="/resources" element={<Resources />} />
+
       </Routes>
     </Router>
   )

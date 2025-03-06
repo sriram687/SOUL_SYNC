@@ -5,6 +5,9 @@ import { Brain, LogOut, HelpCircle, User } from "lucide-react";
 import { FaUserCircle } from "react-icons/fa";
 import woman from "../images/woman.jpeg";
 import therapist from "../images/therapist.jpg";
+import { FaFacebook, FaTwitter, FaInstagram } from "react-icons/fa";
+import "./Heart.css"
+
 
 const quotes = [
   "Your Safe Space for Mental Health Support",
@@ -55,6 +58,7 @@ const HomePage = () => {
           <a href="/doctor" className="hover:text-purple-300">Doctor near me</a>
           <a href="/tech" className="hover:text-purple-300">Tech</a>
         </nav>
+
         <div className="relative">
           <FaUserCircle
             className="w-15 h-10 cursor-pointer hover:text-purple-300"
@@ -85,9 +89,7 @@ const HomePage = () => {
         </div>
       </header>
 
-
-
-      {/* Quote Section - Moved Up */}
+      {/* Quote Section */}
       <div className="mt-28 h-16 flex items-center justify-center w-11/12 text-center">
         <AnimatePresence mode="wait">
           <motion.h1 
@@ -103,7 +105,7 @@ const HomePage = () => {
         </AnimatePresence>
       </div>
 
-      {/* Chatbot Sections - Increased Size & More Description */}
+      {/* Chatbot Sections with Heart Animation */}
       <div className="flex flex-col md:flex-row items-center justify-center gap-10 mt-40 w-11/12 max-w-5xl">
         {/* Women Chatbot Section */}
         <div className="flex flex-col items-center bg-white shadow-lg rounded-lg w-96 h-80 p-6 transition-transform transform hover:scale-105 hover:shadow-2xl">
@@ -122,6 +124,16 @@ const HomePage = () => {
           >
             Start Chat
           </button>
+        </div>
+
+        {/* Heart Animation */}
+        <div className="flex justify-center items-center">
+          <div className="relative w-[100px] h-[100px] bg-red-500 rotate-[-45deg] shadow-[0_0_20px_red,0_0_40px_#ff0033,0_0_60px_#ff3366] animate-heartbeat">
+            {/* Left Rounded Part */}
+            <div className="absolute w-[100px] h-[100px] bg-red-500 rounded-full top-[-50px] left-0 shadow-[0_0_20px_red,0_0_40px_#ff0033,0_0_60px_#ff3366]"></div>
+            {/* Right Rounded Part */}
+            <div className="absolute w-[100px] h-[100px] bg-red-500 rounded-full left-[50px] top-0 shadow-[0_0_20px_red,0_0_40px_#ff0033,0_0_60px_#ff3366]"></div>
+          </div>
         </div>
 
         {/* Therapist Chatbot Section */}
@@ -143,6 +155,27 @@ const HomePage = () => {
           </button>
         </div>
       </div>
+
+      {/* Footer */}
+      <footer className="bg-gradient-to-r from-purple-600 to-pink-500 text-white py-8 mt-10 w-full">
+        <div className="max-w-5xl mx-auto flex flex-col md:flex-row items-center justify-between px-6">
+          <div className="text-center md:text-left">
+            <h2 className="text-2xl font-bold">MindCare</h2>
+            <p className="text-sm opacity-80 mt-1">
+              Supporting mental health, one conversation at a time.
+            </p>
+          </div>
+          <div className="flex space-x-6 my-4 md:my-0">
+            <FaFacebook className="text-2xl cursor-pointer transition-transform transform hover:scale-110 hover:text-gray-200" />
+            <FaTwitter className="text-2xl cursor-pointer transition-transform transform hover:scale-110 hover:text-gray-200" />
+            <FaInstagram className="text-2xl cursor-pointer transition-transform transform hover:scale-110 hover:text-gray-200" />
+          </div>
+          <div className="text-center md:text-right text-sm opacity-80">
+            <p>&copy; 2025 MindCare. All rights reserved.</p>
+            <p className="hover:underline cursor-pointer mt-1">Privacy Policy | Terms of Use</p>
+          </div>
+        </div>
+      </footer>
     </motion.div>
   );
 };

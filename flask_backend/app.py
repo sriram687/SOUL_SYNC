@@ -1,10 +1,11 @@
 from flask import Flask, request, jsonify
 from flask_bcrypt import Bcrypt
-from flask_jwt_extended import JWTManager, create_access_token, jwt_required
-from flask_cors import CORS  # Import CORS
+from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity
+from flask_cors import CORS
 from dotenv import load_dotenv
 import os
 from pymongo import MongoClient
+
 
 # Load environment variables
 load_dotenv()
@@ -24,6 +25,7 @@ MONGO_URI = os.getenv("MONGO_URI", "mongodb+srv://sriram:Thehope123@cluster0.tov
 client = MongoClient(MONGO_URI)
 db = client["mental_health"]
 users_collection = db["users"]  # MongoDB collection for storing users
+chat_collection = db["chat_history"]  # MongoDB collection for storing chat history
 
 @app.route('/', methods=['GET'])
 def home():
@@ -62,6 +64,35 @@ def login():
     # Create access token
     access_token = create_access_token(identity=email)
     return jsonify(access_token=access_token), 200
+
+# Logout Endpoint
+@app.route('/logout', methods=['POST'])
+@jwt_required()
+def logout():
+    return jsonify({"message": "Logged out successfully"}), 200
+
+# Store chat history
+@app.route('/store_message', methods=['POST'])
+@jwt_required()
+def store_message():
+    data = request.get_json()
+    user_email = get_jwt_identity()
+    message = data.get("message")
+    role = data.get("role")
+    
+    if not message or not role:
+        return jsonify({"message": "Invalid data"}), 400
+    
+    chat_collection.insert_one({"email": user_email, "role": role, "message": message})
+    return jsonify({"message": "Message stored successfully"}), 201
+
+# Retrieve chat history
+@app.route('/get_chat_history', methods=['GET'])
+@jwt_required()
+def get_chat_history():
+    user_email = get_jwt_identity()
+    history = list(chat_collection.find({"email": user_email}, {"_id": 0, "email": 0}))
+    return jsonify(history), 200
 
 # Protected Route (for testing)
 @app.route('/protected', methods=['GET'])

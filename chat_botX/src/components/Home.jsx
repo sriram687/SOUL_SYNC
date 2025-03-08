@@ -1,12 +1,12 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { Brain, LogOut, HelpCircle, User } from "lucide-react";
-import { FaUserCircle } from "react-icons/fa";
-import woman from "../images/woman.jpeg";
-import therapist from "../images/therapist.jpg";
-import { FaFacebook, FaTwitter, FaInstagram } from "react-icons/fa";
-import "./Heart.css"
+import { 
+  Brain, LogOut, HelpCircle, User, Shield, Clock, Heart, 
+  MessageCircle, Star, Award, 
+  BookOpen, Users, Coffee, Smile, ThumbsUp, Gift
+} from "lucide-react";
+import { FaUserCircle, FaFacebook, FaTwitter, FaInstagram, FaLinkedin } from "react-icons/fa";
 
 
 const quotes = [
@@ -19,6 +19,78 @@ const quotes = [
   "You are not alone. You are loved. You are enough.",
   "It's okay to not be okay, but it's not okay to stay that way.",
   "Every storm runs out of rain. Keep going.",
+  "Transform your thoughts, transform your life.",
+  "Your mental health matters. Take care of yourself.",
+  "Strength grows through struggles.",
+];
+
+const features = [
+  {
+    icon: Shield,
+    title: "100% Confidential",
+    description: "Your conversations are private and secure. We prioritize your privacy above all."
+  },
+  {
+    icon: Clock,
+    title: "24/7 Availability",
+    description: "Access support anytime, anywhere. Our AI companions are always here for you."
+  },
+  {
+    icon: Heart,
+    title: "Empathetic Support",
+    description: "Experience compassionate, judgment-free conversations tailored to your needs."
+  },
+  {
+    icon: MessageCircle,
+    title: "Natural Conversations",
+    description: "Engage in fluid, meaningful dialogues that feel genuine and understanding."
+  }
+];
+
+const testimonials = [
+  {
+    name: "Sarah M.",
+    role: "Working Professional",
+    content: "MindCare has been a game-changer for my mental well-being. The AI companion is always there when I need someone to talk to.",
+    rating: 5
+  },
+  {
+    name: "David R.",
+    role: "Student",
+    content: "The therapist chatbot helped me develop better coping mechanisms for stress. It's like having a personal mental health coach.",
+    rating: 5
+  },
+  {
+    name: "Emily K.",
+    role: "Healthcare Worker",
+    content: "As someone working in healthcare, I appreciate having 24/7 access to mental health support. It's been invaluable during tough times.",
+    rating: 5
+  }
+];
+
+const statistics = [
+  { icon: Users, value: "50,000+", label: "Active Users" },
+  { icon: MessageCircle, value: "1M+", label: "Conversations" },
+  { icon: ThumbsUp, value: "98%", label: "Satisfaction Rate" },
+  { icon: Gift, value: "24/7", label: "Availability" }
+];
+
+const resources = [
+  {
+    icon: BookOpen,
+    title: "Mental Health Articles",
+    description: "Access our library of expert-written articles on various mental health topics."
+  },
+  {
+    icon: Coffee,
+    title: "Self-Care Guides",
+    description: "Discover practical tips and techniques for maintaining mental wellness."
+  },
+  {
+    icon: Smile,
+    title: "Mood Tracking",
+    description: "Track your emotional well-being and identify patterns over time."
+  }
 ];
 
 const HomePage = () => {
@@ -26,13 +98,22 @@ const HomePage = () => {
   const [isLoaded, setIsLoaded] = useState(false);
   const [quoteIndex, setQuoteIndex] = useState(0);
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [activeTestimonial, setActiveTestimonial] = useState(0);
 
   useEffect(() => {
     setIsLoaded(true);
     const quoteInterval = setInterval(() => {
       setQuoteIndex((prevIndex) => (prevIndex + 1) % quotes.length);
     }, 4000);
-    return () => clearInterval(quoteInterval);
+
+    const testimonialInterval = setInterval(() => {
+      setActiveTestimonial((prev) => (prev + 1) % testimonials.length);
+    }, 5000);
+
+    return () => {
+      clearInterval(quoteInterval);
+      clearInterval(testimonialInterval);
+    };
   }, []);
 
   const handleStartChat = (route) => {
@@ -45,41 +126,42 @@ const HomePage = () => {
       initial={{ opacity: 0, y: -50 }}
       animate={isLoaded ? { opacity: 1, y: 0 } : {}}
       exit={{ opacity: 0, y: 50 }}
-      className="h-screen w-screen flex flex-col items-center text-white bg-black"
+      className="min-h-screen w-screen flex flex-col items-center text-white bg-black"
     >
       {/* Header */}
-      <header className="absolute top-0 w-full flex justify-between items-center p-5 bg-gradient-to-r from-purple-400 via-pink-500 to-red-500 bg-opacity-50 backdrop-blur-md">
+      <header className="fixed top-0 w-full z-50 flex justify-between items-center p-5 bg-gradient-to-r from-purple-400 via-pink-500 to-red-500 bg-opacity-50 backdrop-blur-md">
         <div className="flex items-center gap-3">
           <Brain className="w-10 h-10 text-white" />
           <h2 className="text-2xl font-bold">MindCare</h2>
         </div>
         <nav className="flex ml-auto gap-7 text-lg">
-          <a href="/about" className="hover:text-purple-300">About</a>
-          <a href="/doctor" className="hover:text-purple-300">Doctor near me</a>
-          <a href="/tech" className="hover:text-purple-300">Tech</a>
+          <a href="/about" className="hover:text-purple-300 transition-colors">About</a>
+          <a href="/doctor" className="hover:text-purple-300 transition-colors">Find a Doctor</a>
+          <a href="/resources" className="hover:text-purple-300 transition-colors">Resources</a>
+          <a href="/blog" className="hover:text-purple-300 transition-colors">Blog</a>
         </nav>
 
-        <div className="relative">
+        <div className="relative ml-7">
           <FaUserCircle
-            className="w-15 h-10 cursor-pointer hover:text-purple-300"
+            className="w-15 h-10 cursor-pointer hover:text-purple-300 transition-colors"
             onClick={() => setDropdownOpen(!dropdownOpen)}
           />
           {dropdownOpen && (
             <div className="absolute right-0 mt-2 w-48 bg-white text-black rounded-lg shadow-lg overflow-hidden">
               <button
-                className="flex items-center w-full px-4 py-2 hover:bg-gray-200"
+                className="flex items-center w-full px-4 py-2 hover:bg-gray-200 transition-colors"
                 onClick={() => console.log("Profile Clicked")}
               >
-                <User className="mr-2 w-5 h-5" /> Username
+                <User className="mr-2 w-5 h-5" /> Profile
               </button>
               <button
-                className="flex items-center w-full px-4 py-2 hover:bg-gray-200"
+                className="flex items-center w-full px-4 py-2 hover:bg-gray-200 transition-colors"
                 onClick={() => console.log("Get Help Clicked")}
               >
                 <HelpCircle className="mr-2 w-5 h-5" /> Get Help
               </button>
               <button
-                className="flex items-center w-full px-4 py-2 text-red-600 hover:bg-gray-200"
+                className="flex items-center w-full px-4 py-2 text-red-600 hover:bg-gray-200 transition-colors"
                 onClick={() => console.log("Logout Clicked")}
               >
                 <LogOut className="mr-2 w-5 h-5" /> Logout
@@ -89,90 +171,240 @@ const HomePage = () => {
         </div>
       </header>
 
-      {/* Quote Section */}
-      <div className="mt-28 h-16 flex items-center justify-center w-11/12 text-center">
-        <AnimatePresence mode="wait">
-          <motion.h1 
-            key={quoteIndex}
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 20 }}
-            transition={{ duration: 0.8 }}
-            className="text-4xl font-bold leading-normal bg-gradient-to-r from-purple-400 via-pink-500 to-red-500 text-transparent bg-clip-text drop-shadow-lg"
+      {/* Hero Section */}
+      <div className="mt-28 min-h-screen flex flex-col items-center justify-center w-full bg-gradient-to-b from-black to-purple-900">
+        <div className="text-center max-w-4xl px-4">
+          <AnimatePresence mode="wait">
+            <motion.h1 
+              key={quoteIndex}
+              initial={{ opacity: 0, y: -20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 20 }}
+              transition={{ duration: 0.9 }}
+              className="text-5xl font-bold leading-tight bg-gradient-to-r from-purple-400 via-pink-400 to-red-400 text-transparent bg-clip-text drop-shadow-lg mb-8"
+            >
+              {quotes[quoteIndex]}
+            </motion.h1>
+          </AnimatePresence>
+          
+          <motion.p
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.5 }}
+            className="text-xl text-gray-300 mb-12"
           >
-            {quotes[quoteIndex]}
-          </motion.h1>
-        </AnimatePresence>
-      </div>
+            Experience the future of mental health support with our AI-powered companions.
+            Get instant, personalized help whenever you need it.
+          </motion.p>
 
-      {/* Chatbot Sections with Heart Animation */}
-      <div className="flex flex-col md:flex-row items-center justify-center gap-10 mt-40 w-11/12 max-w-5xl">
-        {/* Women Chatbot Section */}
-        <div className="flex flex-col items-center bg-white shadow-lg rounded-lg w-96 h-80 p-6 transition-transform transform hover:scale-105 hover:shadow-2xl">
-          <img
-            src={woman}
-            alt="Women Chatbot"
-            className="w-28 h-28 object-cover rounded-full mb-4"
-          />
-          <h3 className="text-2xl font-bold text-gray-800">Women Chatbot</h3>
-          <p className="text-gray-600 text-sm text-center mt-3 px-4">
-            A confidential AI companion offering **emotional support, guidance, and a safe space for women** to share their feelings and seek advice. Available 24/7 for assistance.
-          </p>
-          <button
-            onClick={() => handleStartChat("/women-chat")}
-            className="mt-5 inline-flex items-center justify-center px-6 py-3 text-lg font-medium text-white bg-gradient-to-br from-purple-500 to-pink-500 rounded-lg hover:from-purple-600 hover:to-pink-600 focus:ring-4 focus:outline-none focus:ring-purple-200 dark:focus:ring-purple-800"
+          <motion.button
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.7 }}
+            onClick={() => handleStartChat("/register")}
+            className="px-8 py-4 bg-gradient-to-r from-purple-500 to-pink-500 text-white text-lg font-semibold rounded-lg hover:from-purple-600 hover:to-pink-600 transition-all transform hover:scale-105"
           >
-            Start Chat
-          </button>
+            Start Your Journey Today
+          </motion.button>
         </div>
 
-        {/* Heart Animation */}
-        <div className="flex justify-center items-center">
-          <div className="relative w-[100px] h-[100px] bg-red-500 rotate-[-45deg] shadow-[0_0_20px_red,0_0_40px_#ff0033,0_0_60px_#ff3366] animate-heartbeat">
-            {/* Left Rounded Part */}
-            <div className="absolute w-[100px] h-[100px] bg-red-500 rounded-full top-[-50px] left-0 shadow-[0_0_20px_red,0_0_40px_#ff0033,0_0_60px_#ff3366]"></div>
-            {/* Right Rounded Part */}
-            <div className="absolute w-[100px] h-[100px] bg-red-500 rounded-full left-[50px] top-0 shadow-[0_0_20px_red,0_0_40px_#ff0033,0_0_60px_#ff3366]"></div>
+        {/* Statistics Section */}
+        <motion.div
+          initial={{ opacity: 0, y: 50 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.9 }}
+          className="grid grid-cols-2 md:grid-cols-4 gap-8 mt-20 w-full max-w-6xl px-4"
+        >
+          {statistics.map((stat, index) => (
+            <div key={index} className="text-center">
+              <stat.icon className="w-8 h-8 mx-auto mb-4 text-pink-400" />
+              <h3 className="text-3xl font-bold text-white mb-2">{stat.value}</h3>
+              <p className="text-gray-400">{stat.label}</p>
+            </div>
+          ))}
+        </motion.div>
+      </div>
+
+      {/* Features Section */}
+      <motion.div 
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.8 }}
+        className="w-full py-20 bg-gradient-to-b from-purple-900 to-black"
+      >
+        <div className="max-w-6xl mx-auto px-4">
+          <h2 className="text-4xl font-bold text-center mb-16 bg-gradient-to-r from-purple-400 via-pink-400 to-red-400 text-transparent bg-clip-text">
+            Why Choose Our AI Companions?
+          </h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
+            {features.map((feature, index) => (
+              <motion.div
+                key={index}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5, delay: index * 0.1 }}
+                className="bg-gradient-to-br from-purple-900 to-pink-900 p-8 rounded-lg shadow-xl hover:shadow-2xl transition-all hover:scale-105"
+              >
+                <feature.icon className="w-12 h-12 mb-6 text-pink-400" />
+                <h3 className="text-xl font-semibold mb-4">{feature.title}</h3>
+                <p className="text-gray-300">{feature.description}</p>
+              </motion.div>
+            ))}
           </div>
         </div>
+      </motion.div>
 
-        {/* Therapist Chatbot Section */}
-        <div className="flex flex-col items-center bg-white shadow-lg rounded-lg w-96 h-80 p-6 transition-transform transform hover:scale-105 hover:shadow-2xl">
-          <img
-            src={therapist}
-            alt="Therapist Chatbot"
-            className="w-28 h-28 object-cover rounded-full mb-4"
-          />
-          <h3 className="text-2xl font-bold text-gray-800">Therapist Chatbot</h3>
-          <p className="text-gray-600 text-sm text-center mt-3 px-4">
-            An AI-powered **virtual therapist** providing professional guidance, **coping strategies, and personalized mental wellness support.** Connect instantly for a supportive conversation.
+      {/* Testimonials Section */}
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.8 }}
+        className="w-full py-20 bg-gradient-to-b from-black to-purple-900"
+      >
+        <div className="max-w-4xl mx-auto px-4">
+          <h2 className="text-4xl font-bold text-center mb-16 bg-gradient-to-r from-purple-400 via-pink-400 to-red-400 text-transparent bg-clip-text">
+            What Our Users Say
+          </h2>
+          <div className="relative">
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={activeTestimonial}
+                initial={{ opacity: 0, x: 100 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -100 }}
+                transition={{ duration: 0.5 }}
+                className="bg-gradient-to-br from-purple-900 to-pink-900 p-8 rounded-lg shadow-xl"
+              >
+                <div className="flex items-center mb-6">
+                  <div className="mr-4">
+                    <div className="w-16 h-16 bg-gradient-to-r from-purple-400 to-pink-400 rounded-full flex items-center justify-center">
+                      <User className="w-8 h-8 text-white" />
+                    </div>
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-semibold">{testimonials[activeTestimonial].name}</h3>
+                    <p className="text-gray-400">{testimonials[activeTestimonial].role}</p>
+                  </div>
+                  <div className="ml-auto flex">
+                    {[...Array(testimonials[activeTestimonial].rating)].map((_, i) => (
+                      <Star key={i} className="w-5 h-5 text-yellow-400 fill-current" />
+                    ))}
+                  </div>
+                </div>
+                <p className="text-gray-300 text-lg italic">"{testimonials[activeTestimonial].content}"</p>
+              </motion.div>
+            </AnimatePresence>
+          </div>
+        </div>
+      </motion.div>
+
+      {/* Resources Section */}
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.8 }}
+        className="w-full py-20 bg-gradient-to-b from-purple-900 to-black"
+      >
+        <div className="max-w-6xl mx-auto px-4">
+          <h2 className="text-4xl font-bold text-center mb-16 bg-gradient-to-r from-purple-400 via-pink-400 to-red-400 text-transparent bg-clip-text">
+            Mental Health Resources
+          </h2>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+            {resources.map((resource, index) => (
+              <motion.div
+                key={index}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5, delay: index * 0.1 }}
+                className="bg-gradient-to-br from-purple-900 to-pink-900 p-8 rounded-lg shadow-xl hover:shadow-2xl transition-all hover:scale-105 cursor-pointer"
+              >
+                <resource.icon className="w-12 h-12 mb-6 text-pink-400" />
+                <h3 className="text-xl font-semibold mb-4">{resource.title}</h3>
+                <p className="text-gray-300">{resource.description}</p>
+              </motion.div>
+            ))}
+          </div>
+        </div>
+      </motion.div>
+
+      {/* Call to Action Section */}
+      <motion.div
+        initial={{ opacity: 0, y: 30 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.8 }}
+        className="w-full py-20 bg-gradient-to-b from-black to-purple-900"
+      >
+        <div className="max-w-4xl mx-auto text-center px-4">
+          <h2 className="text-4xl font-bold mb-8">Ready to Transform Your Mental Well-being?</h2>
+          <p className="text-xl text-gray-300 mb-12">
+            Join thousands of others who have already taken the first step towards better mental health.
+            Our AI companions are ready to support you on your journey.
           </p>
           <button
-            onClick={() => handleStartChat("/therapist-chat")}
-            className="mt-5 inline-flex items-center justify-center px-6 py-3 text-lg font-medium text-white bg-gradient-to-br from-purple-500 to-pink-500 rounded-lg hover:from-purple-600 hover:to-pink-600 focus:ring-4 focus:outline-none focus:ring-purple-200 dark:focus:ring-purple-800"
+            onClick={() => handleStartChat("/register")}
+            className="px-12 py-6 bg-gradient-to-r from-purple-500 to-pink-500 text-white text-xl font-semibold rounded-lg hover:from-purple-600 hover:to-pink-600 transition-all transform hover:scale-105 shadow-lg"
           >
-            Start Chat
+            Begin Your Healing Journey Now
           </button>
         </div>
-      </div>
+      </motion.div>
 
       {/* Footer */}
-      <footer className="bg-gradient-to-r from-purple-600 to-pink-500 text-white py-8 mt-10 w-full">
-        <div className="max-w-5xl mx-auto flex flex-col md:flex-row items-center justify-between px-6">
-          <div className="text-center md:text-left">
-            <h2 className="text-2xl font-bold">MindCare</h2>
-            <p className="text-sm opacity-80 mt-1">
+      <footer className="w-full bg-gradient-to-r from-purple-900 to-pink-900 text-white py-16">
+        <div className="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-4 gap-12 px-6">
+          <div>
+            <div className="flex items-center gap-3 mb-6">
+              <Brain className="w-8 h-8" />
+              <h2 className="text-2xl font-bold">MindCare</h2>
+            </div>
+            <p className="text-gray-300">
               Supporting mental health, one conversation at a time.
             </p>
           </div>
-          <div className="flex space-x-6 my-4 md:my-0">
-            <FaFacebook className="text-2xl cursor-pointer transition-transform transform hover:scale-110 hover:text-gray-200" />
-            <FaTwitter className="text-2xl cursor-pointer transition-transform transform hover:scale-110 hover:text-gray-200" />
-            <FaInstagram className="text-2xl cursor-pointer transition-transform transform hover:scale-110 hover:text-gray-200" />
+          
+          <div>
+            <h3 className="text-lg font-semibold mb-4">Quick Links</h3>
+            <ul className="space-y-2">
+              <li><a href="/about" className="text-gray-300 hover:text-white transition-colors">About Us</a></li>
+              <li><a href="/features" className="text-gray-300 hover:text-white transition-colors">Features</a></li>
+              <li><a href="/pricing" className="text-gray-300 hover:text-white transition-colors">Pricing</a></li>
+              <li><a href="/blog" className="text-gray-300 hover:text-white transition-colors">Blog</a></li>
+            </ul>
           </div>
-          <div className="text-center md:text-right text-sm opacity-80">
-            <p>&copy; 2025 MindCare. All rights reserved.</p>
-            <p className="hover:underline cursor-pointer mt-1">Privacy Policy | Terms of Use</p>
+          
+          <div>
+            <h3 className="text-lg font-semibold mb-4">Resources</h3>
+            <ul className="space-y-2">
+              <li><a href="/help" className="text-gray-300 hover:text-white transition-colors">Help Center</a></li>
+              <li><a href="/terms" className="text-gray-300 hover:text-white transition-colors">Terms of Service</a></li>
+              <li><a href="/privacy" className="text-gray-300 hover:text-white transition-colors">Privacy Policy</a></li>
+              <li><a href="/contact" className="text-gray-300 hover:text-white transition-colors">Contact Us</a></li>
+            </ul>
+          </div>
+          
+          <div>
+            <h3 className="text-lg font-semibold mb-4">Connect With Us</h3>
+            <div className="flex space-x-4 mb-6">
+              <FaFacebook className="text-2xl cursor-pointer hover:text-purple-300 transition-transform transform hover:scale-110" />
+              <FaTwitter className="text-2xl cursor-pointer hover:text-purple-300 transition-transform transform hover:scale-110" />
+              <FaInstagram className="text-2xl cursor-pointer hover:text-purple-300 transition-transform transform hover:scale-110" />
+              <FaLinkedin className="text-2xl cursor-pointer hover:text-purple-300 transition-transform transform hover:scale-110" />
+            </div>
+            <p className="text-gray-300">
+              Subscribe to our newsletter for updates and mental health tips.
+            </p>
+          </div>
+        </div>
+        
+        <div className="max-w-6xl mx-auto mt-12 pt-8 border-t border-gray-700 px-6">
+          <div className="flex flex-col md:flex-row justify-between items-center">
+            <p className="text-gray-300 text-sm">
+              &copy; {new Date().getFullYear()} MindCare. All rights reserved.
+            </p>
+            <div className="flex items-center mt-4 md:mt-0">
+              <Award className="w-6 h-6 text-pink-400 mr-2" />
+              <span className="text-sm">Award-winning mental health platform</span>
+            </div>
           </div>
         </div>
       </footer>

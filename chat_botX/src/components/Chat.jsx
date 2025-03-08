@@ -3,7 +3,7 @@ import axios from "axios";
 import { useNavigate } from "react-router-dom";
 import EmojiPicker from "emoji-picker-react";
 import { motion, AnimatePresence } from "framer-motion";
-import { FaMicrophone, FaMicrophoneSlash, FaPaperPlane, FaSmile, FaSignOutAlt } from "react-icons/fa";
+import { Send, Mic, MicOff, LogOut, Smile } from 'lucide-react';
 
 const ChatPage = () => {
   const [messages, setMessages] = useState([
@@ -89,62 +89,124 @@ const ChatPage = () => {
   const stopRecording = () => recognition && recognition.stop();
 
   return (
-    <div className="flex h-screen bg-gradient-to-r from-purple-100 to-indigo-200 p-4">
-      {/* Chat History */}
-      <div className="w-1/4 bg-white/50 p-4 shadow-lg rounded-xl backdrop-blur-md overflow-y-auto">
-        <h2 className="text-xl font-semibold mb-4 text-purple-900">Chat History</h2>
-        <ul>
-          {messages.map((msg, index) => (
-            <motion.li key={index} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, delay: index * 0.1 }} className="p-2 border-b cursor-pointer hover:bg-purple-100 rounded-lg">
-              {msg.content.substring(0, 20)}...
-            </motion.li>
-          ))}
-        </ul>
+    <div className="flex h-screen bg-gradient-to-b from-black to-purple-900">
+      {/* Chat History Sidebar */}
+      <div className="w-1/4 bg-black/30 backdrop-blur-lg border-r border-purple-500/20">
+        <div className="p-6">
+          <h2 className="text-2xl font-bold mb-6 text-white/90 tracking-tight">Chat History</h2>
+          <div className="space-y-3">
+            {messages.map((msg, index) => (
+              <motion.div
+                key={index}
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ duration: 0.3, delay: index * 0.1 }}
+                className="p-3 rounded-lg bg-white/5 hover:bg-white/10 cursor-pointer transition-all border border-purple-500/20"
+              >
+                <p className="text-white/70 text-sm truncate">
+                  {msg.content.substring(0, 30)}...
+                </p>
+              </motion.div>
+            ))}
+          </div>
+        </div>
 
         {/* Logout Button */}
-        <button
-          onClick={handleLogout}
-          className="mt-4 bg-red-500 text-white px-4 py-2 rounded-lg flex items-center space-x-2 hover:bg-red-600 transition-all w-full"
-        >
-          <FaSignOutAlt />
-          <span>Logout</span>
-        </button>
+        <div className="absolute bottom-0 left-0 w-80 p-6">
+          <button
+            onClick={handleLogout}
+            className="w-full flex items-center justify-center space-x-2 bg-red-500/20 hover:bg-red-500/30 text-red-400 p-3 rounded-lg transition-all border border-red-500/30"
+          >
+            <LogOut size={18} />
+            <span>Sign Out</span>
+          </button>
+        </div>
       </div>
 
-      {/* Chat Window */}
-      <div className="w-3/4 flex flex-col bg-white shadow-lg rounded-lg p-6 ml-4">
-        <div className="flex-1 overflow-y-auto p-4">
+      {/* Main Chat Area */}
+      <div className="flex-1 flex flex-col">
+        {/* Messages Area */}
+        <div className="flex-1 overflow-y-auto p-6 space-y-4">
           <AnimatePresence>
             {messages.map((msg, index) => (
-              <motion.div key={index} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.3 }} className={`p-3 my-1 rounded-lg ${msg.role === "user" ? "bg-purple-300 text-right ml-20" : "bg-gray-200 text-left mr-20"}`}>
-                {msg.content}
+              <motion.div
+                key={index}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                transition={{ duration: 0.3 }}
+                className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
+              >
+                <div
+                  className={`max-w-[70%] p-4 rounded-2xl ${
+                    msg.role === "user"
+                      ? "bg-purple-500/30 text-white border border-purple-500/30"
+                      : "bg-white/5 text-white/90 border border-white/10"
+                  }`}
+                >
+                  {msg.content}
+                </div>
               </motion.div>
             ))}
           </AnimatePresence>
         </div>
 
-        {/* Input Box */}
-        <div className="flex mt-2 border-t p-3 items-center space-x-3 relative bg-white rounded-lg shadow-md">
-          <button onClick={() => setShowEmojiPicker(!showEmojiPicker)} className="text-xl p-2 hover:bg-purple-200 rounded-full transition-all">
-            <FaSmile />
-          </button>
-          <AnimatePresence>
-            {showEmojiPicker && (
-              <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="absolute bottom-12 left-10 z-10">
-                <EmojiPicker onEmojiClick={handleEmojiSelect} />
-              </motion.div>
-            )}
-          </AnimatePresence>
+        {/* Input Area */}
+        <div className="p-6 bg-black/30 backdrop-blur-lg border-t border-purple-500/20">
+          <div className="flex items-center space-x-4">
+            <div className="relative">
+              <button
+                onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+                className="p-2 rounded-full hover:bg-white/5 transition-all text-white/70"
+              >
+                <Smile size={20} />
+              </button>
+              <AnimatePresence>
+                {showEmojiPicker && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -10 }}
+                    className="absolute bottom-12 left-0 z-50"
+                  >
+                    <EmojiPicker onEmojiClick={handleEmojiSelect} theme="dark" />
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
 
-          <input type="text" className="w-full border rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-purple-500" value={input} onChange={(e) => setInput(e.target.value)} placeholder="Type a message..." />
+            <input
+              type="text"
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyPress={(e) => e.key === "Enter" && handleSendMessage()}
+              placeholder="Type your message..."
+              className="flex-1 bg-white/5 text-white border border-purple-500/20 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-purple-500/50 placeholder-white/30"
+            />
 
-          <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} onClick={handleSendMessage} className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 transition-colors">
-            <FaPaperPlane />
-          </motion.button>
+            <motion.button
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={handleSendMessage}
+              className="p-3 rounded-full bg-purple-500/20 hover:bg-purple-500/30 text-purple-400 transition-all border border-purple-500/30"
+            >
+              <Send size={20} />
+            </motion.button>
 
-          <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} onMouseDown={startRecording} onMouseUp={stopRecording} className={`p-3 rounded-full ${recording ? "bg-red-600" : "bg-gray-400"} text-white hover:bg-red-700 transition-all`}>
-            {recording ? <FaMicrophoneSlash /> : <FaMicrophone />}
-          </motion.button>
+            <motion.button
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              onMouseDown={startRecording}
+              onMouseUp={stopRecording}
+              className={`p-3 rounded-full transition-all border ${
+                recording
+                  ? "bg-red-500/20 hover:bg-red-500/30 text-red-400 border-red-500/30"
+                  : "bg-white/5 hover:bg-white/10 text-white/70 border-white/10"
+              }`}
+            >
+              {recording ? <MicOff size={20} /> : <Mic size={20} />}
+            </motion.button>
+          </div>
         </div>
       </div>
     </div>

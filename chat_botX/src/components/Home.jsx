@@ -2,11 +2,11 @@ import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { 
-  Brain, LogOut, HelpCircle, User, Shield, Clock, Heart, 
+  Brain, User, Shield, Clock, Heart, 
   MessageCircle, Star, Award, 
   BookOpen, Users, Coffee, Smile, ThumbsUp, Gift
 } from "lucide-react";
-import { FaUserCircle, FaFacebook, FaTwitter, FaInstagram, FaLinkedin } from "react-icons/fa";
+import { FaFacebook, FaTwitter, FaInstagram, FaLinkedin } from "react-icons/fa";
 
 
 const quotes = [
@@ -97,7 +97,6 @@ const HomePage = () => {
   const navigate = useNavigate();
   const [isLoaded, setIsLoaded] = useState(false);
   const [quoteIndex, setQuoteIndex] = useState(0);
-  const [dropdownOpen, setDropdownOpen] = useState(false);
   const [activeTestimonial, setActiveTestimonial] = useState(0);
 
   useEffect(() => {
@@ -129,7 +128,7 @@ const HomePage = () => {
       className="min-h-screen w-screen flex flex-col items-center text-white bg-black"
     >
       {/* Header */}
-      <header className="fixed top-0 w-full z-50 flex justify-between items-center p-5 bg-gradient-to-r from-purple-400 via-pink-500 to-red-500 bg-opacity-50 backdrop-blur-md">
+      <header className="fixed top-0 w-full inset-x-0 z-50 flex justify-between items-center p-5 bg-gradient-to-r from-purple-400 via-pink-500 to-red-500 bg-opacity-50 backdrop-blur-md">
         <div className="flex items-center gap-3">
           <Brain className="w-10 h-10 text-white" />
           <h2 className="text-2xl font-bold">MindCare</h2>
@@ -137,38 +136,9 @@ const HomePage = () => {
         <nav className="flex ml-auto gap-7 text-lg">
           <a href="/about" className="hover:text-purple-300 transition-colors">About</a>
           <a href="/doctor" className="hover:text-purple-300 transition-colors">Find a Doctor</a>
-          <a href="/resources" className="hover:text-purple-300 transition-colors">Resources</a>
-          <a href="/blog" className="hover:text-purple-300 transition-colors">Blog</a>
+          <a href="/resources" className="hover:text-purple-300 mr-8 transition-colors">Resources</a>
+          
         </nav>
-
-        <div className="relative ml-7">
-          <FaUserCircle
-            className="w-15 h-10 cursor-pointer hover:text-purple-300 transition-colors"
-            onClick={() => setDropdownOpen(!dropdownOpen)}
-          />
-          {dropdownOpen && (
-            <div className="absolute right-0 mt-2 w-48 bg-white text-black rounded-lg shadow-lg overflow-hidden">
-              <button
-                className="flex items-center w-full px-4 py-2 hover:bg-gray-200 transition-colors"
-                onClick={() => console.log("Profile Clicked")}
-              >
-                <User className="mr-2 w-5 h-5" /> Profile
-              </button>
-              <button
-                className="flex items-center w-full px-4 py-2 hover:bg-gray-200 transition-colors"
-                onClick={() => console.log("Get Help Clicked")}
-              >
-                <HelpCircle className="mr-2 w-5 h-5" /> Get Help
-              </button>
-              <button
-                className="flex items-center w-full px-4 py-2 text-red-600 hover:bg-gray-200 transition-colors"
-                onClick={() => console.log("Logout Clicked")}
-              >
-                <LogOut className="mr-2 w-5 h-5" /> Logout
-              </button>
-            </div>
-          )}
-        </div>
       </header>
 
       {/* Hero Section */}
@@ -181,7 +151,7 @@ const HomePage = () => {
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: 20 }}
               transition={{ duration: 0.9 }}
-              className="text-5xl font-bold leading-tight bg-gradient-to-r from-purple-400 via-pink-400 to-red-400 text-transparent bg-clip-text drop-shadow-lg mb-8"
+              className="text-5xl font-bold leading-tight  bg-gradient-to-r from-purple-400 via-pink-400 to-red-400 text-transparent bg-clip-text drop-shadow-lg mb-8"
             >
               {quotes[quoteIndex]}
             </motion.h1>
@@ -204,7 +174,16 @@ const HomePage = () => {
             onClick={() => handleStartChat("/register")}
             className="px-8 py-4 bg-gradient-to-r from-purple-500 to-pink-500 text-white text-lg font-semibold rounded-lg hover:from-purple-600 hover:to-pink-600 transition-all transform hover:scale-105"
           >
-            Start Your Journey Today
+            Chat with Woman AI
+          </motion.button>
+          <motion.button
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.7 }}
+            onClick={() => handleStartChat("/register")}
+            className="px-8 py-4 bg-gradient-to-r mx-5 from-purple-500 to-pink-500 text-white text-lg font-semibold rounded-lg hover:from-purple-600 hover:to-pink-600 transition-all transform hover:scale-105"
+          >
+            Chat with a Therapist
           </motion.button>
         </div>
 

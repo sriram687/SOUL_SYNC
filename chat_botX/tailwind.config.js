@@ -3,7 +3,20 @@ const { keyframes } = require('@emotion/react');
 module.exports = {
   theme: {
     extend: {
+      animation: {
+        'gradient': 'gradient 8s linear infinite',
+      },
       keyframes: {
+        'gradient': {
+          '0%, 100%': {
+            'background-size': '200% 200%',
+            'background-position': 'left center'
+          },
+          '50%': {
+            'background-size': '200% 200%',
+            'background-position': 'right center'
+          },
+        },
         beat: {
           '0%, 100%': { transform: 'scale(1)' },
           '50%': { transform: 'scale(1.2)' },

@@ -3,7 +3,7 @@ import axios from "axios";
 import { useNavigate } from "react-router-dom";
 import EmojiPicker from "emoji-picker-react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Send, Mic, MicOff, LogOut, Smile, Brain, Trash2, Volume2, VolumeX } from 'lucide-react';
+import { Send, Mic, MicOff, LogOut, Smile, Brain, Trash2, Volume2, VolumeX, Save } from 'lucide-react';
 import { Link } from "react-router-dom";
 
 const ChatPage = () => {
@@ -19,6 +19,13 @@ const ChatPage = () => {
   const [outputMode, setOutputMode] = useState("text"); // "text" or "voice"
   const speechSynthesisRef = useRef(null);
   const navigate = useNavigate();
+  
+  // Voice profile state
+  const [voiceRecording, setVoiceRecording] = useState(false);
+  const [userVoiceProfile, setUserVoiceProfile] = useState(null);
+  const [recordingBlob, setRecordingBlob] = useState(null);
+  const mediaRecorderRef = useRef(null);
+  const audioChunksRef = useRef([]);
 
   useEffect(() => {     
     const token = localStorage.getItem("token");
@@ -31,6 +38,7 @@ const ChatPage = () => {
     }
   
     fetchChatHistory();
+    fetchUserVoiceProfile();
   
     // Set up speech recognition
     if ("webkitSpeechRecognition" in window) {
@@ -60,13 +68,111 @@ const ChatPage = () => {
       if (speechSynthesisRef.current && speechSynthesisRef.current.speaking) {
         speechSynthesisRef.current.cancel();
       }
+      
+      // Clean up media recorder if active
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state === "recording") {
+        mediaRecorderRef.current.stop();
+      }
     };
   }, [navigate]);
+
+  const fetchUserVoiceProfile = async () => {
+    const token = localStorage.getItem("token");
+    if (!token) return;
+    
+    try {
+      const response = await axios.get("http://localhost:5000/get_user_voice_profile", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      
+      if (response.data && response.data.voiceProfile) {
+        setUserVoiceProfile(response.data.voiceProfile);
+      }
+    } catch (error) {
+      console.error("Error fetching user voice profile:", error);
+    }
+  };
+  
+  const startVoiceRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      audioChunksRef.current = [];
+      
+      const mediaRecorder = new MediaRecorder(stream);
+      mediaRecorderRef.current = mediaRecorder;
+      
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          audioChunksRef.current.push(event.data);
+        }
+      };
+      
+      mediaRecorder.onstop = () => {
+        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/wav' });
+        setRecordingBlob(audioBlob);
+        
+        // Release microphone access
+        stream.getTracks().forEach(track => track.stop());
+      };
+      
+      setVoiceRecording(true);
+      mediaRecorder.start();
+    } catch (error) {
+      console.error("Error starting voice recording:", error);
+      alert("Could not access your microphone. Please check your permissions.");
+    }
+  };
+  
+  const stopVoiceRecording = () => {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state === "recording") {
+      mediaRecorderRef.current.stop();
+      setVoiceRecording(false);
+    }
+  };
+  
+  const saveVoiceProfile = async () => {
+    if (!recordingBlob) {
+      alert("Please record a voice sample first.");
+      return;
+    }
+    
+    const token = localStorage.getItem("token");
+    if (!token) return;
+    
+    const formData = new FormData();
+    formData.append('voiceSample', recordingBlob);
+    
+    setIsLoading(true);
+    
+    try {
+      const response = await axios.post(
+        "http://localhost:5000/upload_voice_profile",
+        formData,
+        { 
+          headers: { 
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'multipart/form-data'
+          } 
+        }
+      );
+      
+      if (response.data && response.data.voiceProfileId) {
+        setUserVoiceProfile(response.data.voiceProfileId);
+        alert("Voice profile saved successfully!");
+      }
+    } catch (error) {
+      console.error("Error saving voice profile:", error);
+      alert("Failed to save voice profile. Please try again later.");
+    } finally {
+      setIsLoading(false);
+      setRecordingBlob(null);
+    }
+  };
   
   const fetchChatHistory = async () => {
     const token = localStorage.getItem("token");
     
-    console.log("fetch: ", token); // Print token in the terminal
+    console.log("fetch: ", token);
 
     if (!token) {
       console.error("Token is missing from localStorage!");
@@ -107,7 +213,6 @@ const ChatPage = () => {
       
       console.log("Message deleted successfully:", response.data);
       
-      // If the deletion was successful on the server, we've already updated the UI
     } catch (error) {
       console.error("Error deleting message:", error);
       
@@ -130,7 +235,29 @@ const ChatPage = () => {
       // Create a new utterance
       const utterance = new SpeechSynthesisUtterance(text);
       
-      // Optional: Set voice properties
+      // If we have a user voice profile, use it
+      if (userVoiceProfile) {
+        // Get available voices
+        const voices = speechSynthesisRef.current.getVoices();
+        
+        // Try to find the best matching voice (this is a simplified approach)
+        // In a real implementation, you would use the actual user voice model
+        // Default to a female voice as it's for a women-focused mental health app
+        const femaleVoices = voices.filter(voice => 
+          voice.name.includes('female') || 
+          voice.name.includes('woman') || 
+          voice.name.includes('girl')
+        );
+        
+        if (femaleVoices.length > 0) {
+          utterance.voice = femaleVoices[0];
+        }
+        
+        // In a real implementation with a voice cloning API, you would use:
+        // utterance.voiceURI = `custom://${userVoiceProfile}`;
+      }
+      
+      // Set voice properties
       utterance.rate = 1.0; // Speed
       utterance.pitch = 1.0; // Pitch
       utterance.volume = 1.0; // Volume
@@ -161,7 +288,8 @@ const ChatPage = () => {
         "http://localhost:5000/gemini_chat",
         { 
           message: input,
-          outputMode: outputMode // Send the current output mode to the backend
+          outputMode: outputMode,
+          useUserVoice: !!userVoiceProfile // Tell backend if we're using custom voice
         },
         { headers: { Authorization: `Bearer ${token}` } }
       );
@@ -307,29 +435,86 @@ const ChatPage = () => {
             </div>
           </div>
 
-          {/* Output Mode Toggle */}
-          <div className="p-6">
-            <h2 className="text-lg font-semibold text-purple-900 mb-4">Output Settings</h2>
-            <button
-              onClick={toggleOutputMode}
-              className={`w-full flex items-center justify-center space-x-2 p-3 rounded-lg transition-all border ${
-                outputMode === "voice" 
-                  ? "bg-purple-200 text-purple-700 border-purple-300" 
-                  : "bg-gray-100 text-gray-700 border-gray-200"
-              }`}
-            >
-              {outputMode === "voice" ? (
-                <>
-                  <Volume2 size={18} />
-                  <span>Voice Output Mode</span>
-                </>
-              ) : (
-                <>
-                  <VolumeX size={18} />
-                  <span>Text Output Mode</span>
-                </>
+          {/* Voice Profile & Output Mode Section */}
+          <div className="p-6 border-t border-purple-100">
+            <h2 className="text-lg font-semibold text-purple-900 mb-4">Voice Settings</h2>
+            
+            {/* Voice Profile Recording */}
+            <div className="mb-4">
+              <h3 className="text-sm font-medium text-purple-700 mb-2">Voice Profile</h3>
+              <div className="flex space-x-2">
+                <button
+                  onMouseDown={startVoiceRecording}
+                  onMouseUp={stopVoiceRecording}
+                  className={`flex-1 p-3 rounded-lg transition-all border ${
+                    voiceRecording
+                      ? "bg-red-100 text-red-600 border-red-200"
+                      : "bg-purple-50 text-purple-600 border-purple-100"
+                  }`}
+                >
+                  {voiceRecording ? (
+                    <span className="flex items-center justify-center">
+                      <MicOff size={18} className="mr-2" />
+                      Release to Stop
+                    </span>
+                  ) : (
+                    <span className="flex items-center justify-center">
+                      <Mic size={18} className="mr-2" />
+                      Hold to Record
+                    </span>
+                  )}
+                </button>
+              </div>
+              
+              {recordingBlob && (
+                <div className="mt-2">
+                  <audio 
+                    src={URL.createObjectURL(recordingBlob)} 
+                    controls 
+                    className="w-full h-8 mt-2"
+                  />
+                  <button
+                    onClick={saveVoiceProfile}
+                    disabled={isLoading}
+                    className="w-full mt-2 flex items-center justify-center bg-purple-600 hover:bg-purple-700 text-white p-2 rounded-lg transition-all"
+                  >
+                    <Save size={16} className="mr-2" />
+                    Save Voice Profile
+                  </button>
+                </div>
               )}
-            </button>
+              
+              {userVoiceProfile && !recordingBlob && (
+                <div className="mt-2 text-center text-sm text-purple-700 bg-purple-50 p-2 rounded-lg border border-purple-100">
+                  Voice profile saved and active
+                </div>
+              )}
+            </div>
+            
+            {/* Output Mode Toggle */}
+            <div className="mt-4">
+              <h3 className="text-sm font-medium text-purple-700 mb-2">Output Mode</h3>
+              <button
+                onClick={toggleOutputMode}
+                className={`w-full flex items-center justify-center space-x-2 p-3 rounded-lg transition-all border ${
+                  outputMode === "voice" 
+                    ? "bg-purple-200 text-purple-700 border-purple-300" 
+                    : "bg-gray-100 text-gray-700 border-gray-200"
+                }`}
+              >
+                {outputMode === "voice" ? (
+                  <>
+                    <Volume2 size={18} />
+                    <span>Voice Output Mode</span>
+                  </>
+                ) : (
+                  <>
+                    <VolumeX size={18} />
+                    <span>Text Output Mode</span>
+                  </>
+                )}
+              </button>
+            </div>
           </div>
 
           {/* Logout Button */}

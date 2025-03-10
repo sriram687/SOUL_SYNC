@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, send_file
 from flask_bcrypt import Bcrypt
 from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity
 from flask_cors import CORS
@@ -8,6 +8,10 @@ from pymongo import MongoClient
 import google.generativeai as genai
 from datetime import datetime, timezone
 from bson import ObjectId
+import requests
+from io import BytesIO
+import uuid
+import tempfile
 
 # Load environment variables
 load_dotenv()
@@ -21,17 +25,22 @@ bcrypt = Bcrypt(app)
 jwt = JWTManager(app)
 
 # MongoDB connection setup
-MONGO_URI = os.getenv("MONGO_URI","mongodb+srv://sriram:Thehope123@cluster0.tovxt.mongodb.net/mental_health?retryWrites=true&w=majority")
+MONGO_URI = os.getenv("MONGO_URI", "mongodb+srv://sriram:Thehope123@cluster0.tovxt.mongodb.net/mental_health?retryWrites=true&w=majority")
 client = MongoClient(MONGO_URI)
 db = client["mental_health"]
 users_collection = db["users"]
 chat_collection = db["chat_history"]
-user_preferences = db["user_preferences"]  # New collection for user preferences
+user_preferences = db["user_preferences"]
+voice_profiles = db["voice_profiles"]  # New collection for storing voice profiles
 
 # Configure Google Gemini
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 genai.configure(api_key=GEMINI_API_KEY)
 model = genai.GenerativeModel('gemini-1.5-flash')
+
+# Voice synthesis API configuration
+VOICE_API_KEY = os.getenv("VOICE_API_KEY")  # API key for your voice cloning service
+VOICE_API_URL = os.getenv("VOICE_API_URL", "https://api.voice-synthesis-service.com/synthesize")  # Replace with actual voice API URL
 
 @app.route("/gemini_chat", methods=["POST"])
 @jwt_required()
@@ -39,7 +48,8 @@ def gemini_chat():
     try:
         data = request.json
         user_input = data.get("message", "")
-        output_mode = data.get("outputMode", "text")  # Get the output mode from the request
+        output_mode = data.get("outputMode", "text")
+        use_user_voice = data.get("useUserVoice", False)
         user_email = get_jwt_identity()
 
         if not user_input:
@@ -48,7 +58,7 @@ def gemini_chat():
         # Store user preference in database
         user_preferences.update_one(
             {"email": user_email},
-            {"$set": {"outputMode": output_mode}},
+            {"$set": {"outputMode": output_mode, "useUserVoice": use_user_voice}},
             upsert=True
         )
 
@@ -67,7 +77,7 @@ def gemini_chat():
                 "You are a supportive and empathetic chatbot designed to provide comfort, encouragement, "
                 "and thoughtful responses to users, particularly women, on emotional and mental well-being topics. "
                 "Your goal is to create a safe space for users to express themselves while offering appropriate guidance. "
-                "Respond concisely (within 50 words) while maintaining warmth and reassurance.\n\nUser: " + user_input
+                "Respond concisely (within 1000 words) while maintaining warmth and reassurance.\n\nUser: " + user_input
             )
 
         responses = model.generate_content(prompt, stream=True)
@@ -77,16 +87,149 @@ def gemini_chat():
             full_response += response.text
 
         # Limit response to 50 words
-        short_response = " ".join(full_response.split()[:50])
+        short_response = " ".join(full_response.split()[:100])
 
+        # If using voice output mode with user's voice, generate audio file
+        audio_url = None
+        if output_mode == "voice" and use_user_voice:
+            # Get user's voice profile
+            voice_profile = voice_profiles.find_one({"email": user_email})
+            
+            if voice_profile and "voiceProfileId" in voice_profile:
+                # Generate speech using user's voice profile
+                audio_url = generate_speech_with_user_voice(short_response, voice_profile["voiceProfileId"])
+        
         return jsonify({
             "response": short_response,
-            "outputMode": output_mode
+            "outputMode": output_mode,
+            "audioUrl": audio_url
         })
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+def generate_speech_with_user_voice(text, voice_profile_id):
+    """
+    Generate speech using the user's voice profile through a voice synthesis API.
+    Returns a URL to the generated audio file.
+    """
+    try:
+        # Call the voice synthesis API
+        response = requests.post(
+            VOICE_API_URL,
+            json={
+                "text": text,
+                "voice_id": voice_profile_id
+            },
+            headers={
+                "Authorization": f"Bearer {VOICE_API_KEY}",
+                "Content-Type": "application/json"
+            }
+        )
+        
+        if response.status_code == 200:
+            # For APIs that return audio directly
+            audio_data = response.content
+            
+            # Generate a unique filename
+            filename = f"{uuid.uuid4()}.mp3"
+            file_path = os.path.join(tempfile.gettempdir(), filename)
+            
+            # Save the audio file temporarily
+            with open(file_path, "wb") as f:
+                f.write(audio_data)
+            
+            # In a production environment, you'd upload this to cloud storage
+            # For this example, we'll return a local path that would be served by your Flask app
+            return f"/api/audio/{filename}"
+        else:
+            print(f"Voice API error: {response.status_code} - {response.text}")
+            return None
+            
+    except Exception as e:
+        print(f"Error generating speech: {str(e)}")
+        return None
+
+@app.route("/api/audio/<filename>", methods=["GET"])
+def get_audio_file(filename):
+    """Serve the generated audio file"""
+    file_path = os.path.join(tempfile.gettempdir(), filename)
+    if os.path.exists(file_path):
+        return send_file(file_path, mimetype="audio/mpeg")
+    else:
+        return jsonify({"error": "Audio file not found"}), 404
+
+@app.route("/upload_voice_profile", methods=["POST"])
+@jwt_required()
+def upload_voice_profile():
+    """Upload and process user's voice sample to create a voice profile"""
+    user_email = get_jwt_identity()
+    
+    if 'voiceSample' not in request.files:
+        return jsonify({"error": "No voice sample provided"}), 400
+        
+    voice_sample = request.files['voiceSample']
+    
+    try:
+        # Save the voice sample temporarily
+        temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.wav')
+        voice_sample.save(temp_file.name)
+        temp_file.close()
+        
+        # Upload to voice cloning service and create profile
+        with open(temp_file.name, 'rb') as f:
+            files = {'file': f}
+            response = requests.post(
+                f"{VOICE_API_URL}/create_profile",
+                files=files,
+                headers={"Authorization": f"Bearer {VOICE_API_KEY}"}
+            )
+        
+        # Clean up temporary file
+        os.unlink(temp_file.name)
+        
+        if response.status_code != 200:
+            return jsonify({"error": f"Voice API error: {response.text}"}), 500
+            
+        # Get the voice profile ID from the response
+        voice_profile_data = response.json()
+        voice_profile_id = voice_profile_data.get("voice_id")
+        
+        if not voice_profile_id:
+            return jsonify({"error": "Failed to get voice profile ID from API"}), 500
+            
+        # Store the voice profile ID in the database
+        voice_profiles.update_one(
+            {"email": user_email},
+            {"$set": {"voiceProfileId": voice_profile_id, "createdAt": datetime.now(timezone.utc)}},
+            upsert=True
+        )
+        
+        return jsonify({
+            "message": "Voice profile created successfully",
+            "voiceProfileId": voice_profile_id
+        })
+        
+    except Exception as e:
+        return jsonify({"error": f"Error creating voice profile: {str(e)}"}), 500
+
+@app.route("/get_user_voice_profile", methods=["GET"])
+@jwt_required()
+def get_user_voice_profile():
+    """Get the user's voice profile information"""
+    user_email = get_jwt_identity()
+    
+    voice_profile = voice_profiles.find_one({"email": user_email})
+    
+    if not voice_profile:
+        return jsonify({"message": "No voice profile found"}), 404
+        
+    return jsonify({
+        "voiceProfile": voice_profile.get("voiceProfileId"),
+        "createdAt": voice_profile.get("createdAt")
+    })
+
+# Keep all other existing routes
 @app.route("/get_user_preferences", methods=["GET"])
 @jwt_required()
 def get_user_preferences():
@@ -97,7 +240,8 @@ def get_user_preferences():
     if not user_prefs:
         # Default preferences
         return jsonify({
-            "outputMode": "text"
+            "outputMode": "text",
+            "useUserVoice": False
         })
     
     # Remove MongoDB _id field for JSON serialization
@@ -121,7 +265,6 @@ def update_user_preferences():
     
     return jsonify({"message": "Preferences updated successfully"})
 
-# Keep all the existing routes from your original code...
 @app.after_request
 def after_request(response):
     response.headers.add('Access-Control-Allow-Origin', '*')
@@ -207,7 +350,6 @@ def store_message():
 @jwt_required()
 def get_chat_history():
     user_email = get_jwt_identity()
-    print(f"Fetching chat history for user: {user_email}")
     # Get chat history sorted by timestamp
     history = list(chat_collection.find(
         {"email": user_email},

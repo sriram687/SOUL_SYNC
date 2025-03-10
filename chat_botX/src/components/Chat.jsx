@@ -8,6 +8,7 @@ import { Link } from "react-router-dom";
 
 
 
+
 const ChatPage = () => {
   const [messages, setMessages] = useState([
     { role: "bot", content: "Hello! How can I assist you today?" },
@@ -48,7 +49,7 @@ const ChatPage = () => {
 const fetchChatHistory = async () => {
   const token = localStorage.getItem("token");
   
-  console.log("JWT Token Retrieved:", token); // Debugging
+  console.log("fetch: ", token); // Print token in the terminal
 
   if (!token) {
     console.error("Token is missing from localStorage!");
@@ -70,6 +71,7 @@ const fetchChatHistory = async () => {
   const handleSendMessage = async () => {
     if (!input.trim() || isLoading) return;
   
+
     const token = localStorage.getItem("token");
     if (!token) {
       alert("You are not logged in. Redirecting to login.");
@@ -82,20 +84,30 @@ const fetchChatHistory = async () => {
     setInput("");
     setIsLoading(true);
   
+
     try {
+      console.log("send: ", token);
       const response = await axios.post(
-        "http://localhost:5000/send_message",
+        "http://localhost:5000/gemini_chat",
         { message: input },
         { headers: { Authorization: `Bearer ${token}` } }
       );
-  
+      
+    
+      // await axios.post(
+      //   "http://localhost:5000/send_message",
+      //   { message: input },
+      //   { headers: { Authorization: `Bearer ${token}` } }
+      // );
+      
+      const botResponse = response.data.response;
+
       await axios.post(
         "http://localhost:5000/store_message",
         { message: input, role: "user" },
+        
         { headers: { Authorization: `Bearer ${token}` } }
       );
-  
-      const botResponse = response.data.response;
   
       await axios.post(
         "http://localhost:5000/store_message",
@@ -110,7 +122,7 @@ const fetchChatHistory = async () => {
         ...prev,
         {
           role: "bot",
-          content: "I apologize, but I'm having trouble processing your request right now. Please try again.",
+          content: "I encountered an issue. Please try again later.",
         },
       ]);
     } finally {
@@ -144,7 +156,7 @@ const fetchChatHistory = async () => {
 
   const handleEmojiSelect = (emoji) => {
     setInput((prev) => prev + emoji.emoji);
-    setShowEmojiPicker(false);
+    setShowEmojiPicker(false);  
   };
 
   const startRecording = () => recognition && recognition.start();

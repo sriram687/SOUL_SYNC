@@ -1,6 +1,6 @@
 from flask import Flask, request, jsonify # type: ignore
 from flask_bcrypt import Bcrypt # type: ignore
-from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity # type: ignore
+from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity  # type: ignore
 from flask_cors import CORS # type: ignore
 from dotenv import load_dotenv # type: ignore
 import os
@@ -8,16 +8,13 @@ from pymongo import MongoClient # type: ignore
 import google.generativeai as genai # type: ignore
 from datetime import datetime, timezone
 
-from flask_jwt_extended import create_access_token
-from flask_bcrypt import check_password_hash
 
 
 # Load environment variables
-load_dotenv()
-
 app = Flask(__name__)
 app.config['JWT_SECRET_KEY'] = os.getenv('JWT_SECRET_KEY')
 CORS(app)
+load_dotenv()
 
 
 # Initialize bcrypt and JWT
@@ -32,9 +29,30 @@ users_collection = db["users"]
 chat_collection = db["chat_history"]
 
 # Configure Google Gemini
-VITE_GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-genai.configure(api_key=VITE_GEMINI_API_KEY)
-model = genai.GenerativeModel('gemini-pro')
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+# genai.configure(api_key=GEMINI_API_KEY)
+genai.configure(api_key=os.environ.get("GEMINI_API_KEY"))
+model = genai.GenerativeModel('gemini-1.5-flash')
+
+@app.route("/gemini_chat", methods=["POST"])
+def gemini_chat():
+    try:
+        data = request.json
+        user_input = data.get("message", "")
+
+        if not user_input:
+            return jsonify({"error": "Empty message received"}), 400
+
+        responses = model.generate_content(user_input, stream=True)
+
+        full_response = ""
+        for response in responses:
+            full_response += response.text
+
+        return jsonify({"response": full_response})
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 @app.after_request
 def after_request(response):

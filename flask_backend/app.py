@@ -1,12 +1,16 @@
-from flask import Flask, request, jsonify
-from flask_bcrypt import Bcrypt
-from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity
-from flask_cors import CORS
-from dotenv import load_dotenv
+from flask import Flask, request, jsonify # type: ignore
+from flask_bcrypt import Bcrypt # type: ignore
+from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity # type: ignore
+from flask_cors import CORS # type: ignore
+from dotenv import load_dotenv # type: ignore
 import os
-from pymongo import MongoClient
-import google.generativeai as genai
+from pymongo import MongoClient # type: ignore
+import google.generativeai as genai # type: ignore
 from datetime import datetime, timezone
+
+from flask_jwt_extended import create_access_token
+from flask_bcrypt import check_password_hash
+
 
 # Load environment variables
 load_dotenv()
@@ -15,20 +19,21 @@ app = Flask(__name__)
 app.config['JWT_SECRET_KEY'] = os.getenv('JWT_SECRET_KEY')
 CORS(app)
 
+
 # Initialize bcrypt and JWT
 bcrypt = Bcrypt(app)
 jwt = JWTManager(app)
 
 # MongoDB connection setup
-MONGO_URI = os.getenv("MONGO_URI")
+MONGO_URI = os.getenv("MONGO_URI","mongodb+srv://sriram:Thehope123@cluster0.tovxt.mongodb.net/mental_health?retryWrites=true&w=majority")
 client = MongoClient(MONGO_URI)
 db = client["mental_health"]
 users_collection = db["users"]
 chat_collection = db["chat_history"]
 
 # Configure Google Gemini
-GEMINI_API_KEY = os.getenv("VITE_GEMINI_API_KEY")
-genai.configure(api_key=GEMINI_API_KEY)
+VITE_GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+genai.configure(api_key=VITE_GEMINI_API_KEY)
 model = genai.GenerativeModel('gemini-pro')
 
 @app.after_request
@@ -59,21 +64,33 @@ def register():
 
     return jsonify({"message": "User registered successfully"}), 201
 
-@app.route('/login', methods=['POST'])
+
+@app.route("/login", methods=["POST"])
 def login():
-    data = request.get_json()
-    email = data.get('email')
-    password = data.get('password')
+    try:
+        data = request.json
+        email = data.get("email")
+        password = data.get("password")
 
-    user = users_collection.find_one({"email": email})
-    if not user or not bcrypt.check_password_hash(user["password"], password):
-        return jsonify({"message": "Invalid credentials"}), 401
+        if not email or not password:
+            return jsonify({"error": "Email and password are required"}), 400
 
-    access_token = create_access_token(identity=email)
-    return jsonify({
-        "token": access_token,
-        "email": email
-    }), 200
+        user = users_collection.find_one({"email": email})
+        if not user:
+            return jsonify({"error": "User not found"}), 404
+
+        if not bcrypt.check_password_hash(user["password"], password):
+            return jsonify({"error": "Invalid password"}), 401
+
+        access_token = create_access_token(identity=email)
+        return jsonify({"access_token": access_token}), 200
+
+    except Exception as e:
+        print("Error:", str(e))
+        return jsonify({"error": "Internal Server Error", "message": str(e)}), 500
+
+
+
 
 @app.route('/logout', methods=['POST'])
 @jwt_required()

@@ -6,6 +6,8 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Send, Mic, MicOff, LogOut, Smile, Brain } from 'lucide-react';
 import { Link } from "react-router-dom";
 
+
+
 const ChatPage = () => {
   const [messages, setMessages] = useState([
     { role: "bot", content: "Hello! How can I assist you today?" },
@@ -20,14 +22,16 @@ const ChatPage = () => {
 
   useEffect(() => {
     const token = localStorage.getItem("token");
+    console.log("JWT Token:", token); // Print token in the terminal
+  
     if (!token) {
       alert("You are not logged in. Redirecting to login.");
       navigate("/login");
       return;
     }
-
+  
     fetchChatHistory();
-
+  
     if ("webkitSpeechRecognition" in window) {
       const speechRecognition = new window.webkitSpeechRecognition();
       speechRecognition.continuous = false;
@@ -39,18 +43,29 @@ const ChatPage = () => {
       setRecognition(speechRecognition);
     }
   }, [navigate]);
+  
 
-  const fetchChatHistory = async () => {
-    try {
-      const token = localStorage.getItem("token");
-      const response = await axios.get("http://localhost:5000/get_chat_history", {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      setMessages(response.data);
-    } catch (error) {
-      console.error("Error fetching chat history:", error);
-    }
-  };
+const fetchChatHistory = async () => {
+  const token = localStorage.getItem("token");
+  
+  console.log("JWT Token Retrieved:", token); // Debugging
+
+  if (!token) {
+    console.error("Token is missing from localStorage!");
+    return;
+  }
+
+  try {
+    const response = await axios.get("http://localhost:5000/get_chat_history", {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    setMessages(response.data);
+  } catch (error) {
+    console.error("Error fetching chat history:", error);
+  }
+};
+
+  
 
   const handleSendMessage = async () => {
     if (!input.trim() || isLoading) return;
@@ -153,7 +168,7 @@ const ChatPage = () => {
             <Link to="/" className="flex items-center gap-2 cursor-pointer">
             <Brain className="w-8 h-8 text-purple-600" />
               <h1 className="text-2xl font-bold bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">
-                MindCare
+                Soul Sync
               </h1>
             </Link>
               
@@ -279,7 +294,7 @@ const ChatPage = () => {
                   isLoading ? 'opacity-50 cursor-not-allowed' : ''
                 }`}
               >
-                <Send size={20} />
+                <Send size={20}/>
               </motion.button>
 
               <motion.button

@@ -39,7 +39,7 @@ function App() {
         <div className="flex items-center gap-3">
         <Link to="/" className="flex items-center gap-2 cursor-pointer">
       <Brain className="w-10 h-10 text-white" />
-  <h1 className="text-2xl font-bold">MindCare</h1>
+  <h1 className="text-2xl font-bold">Soul Sync</h1>
 </Link>
         </div>
       </header>
@@ -58,7 +58,7 @@ function App() {
             animate={{ y: 0, opacity: 1 }}
             transition={{ delay: 0.2, duration: 0.8 }}
           >
-            Welcome to MindCare
+            Welcome to Soul Sync
           </motion.h1>
           <motion.p 
             className="text-xl mb-8 max-w-2xl mx-auto text-teal-50"
@@ -161,7 +161,7 @@ function App() {
             whileInView={{ opacity: 1 }}
             transition={{ duration: 1 }}
           >
-            © 2025 MindCare. All Rights Reserved.
+            © 2025 Soul Sync. All Rights Reserved.
           </motion.p>
         </div>
       </footer>

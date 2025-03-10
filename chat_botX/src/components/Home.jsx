@@ -131,7 +131,7 @@ const HomePage = () => {
       <header className="fixed top-0 w-full inset-x-0 z-50 flex justify-between items-center p-5 bg-gradient-to-r from-purple-400 via-pink-500 to-red-500 bg-opacity-50 backdrop-blur-md">
         <div className="flex items-center gap-3">
           <Brain className="w-10 h-10 text-white" />
-          <h2 className="text-2xl font-bold">MindCare</h2>
+          <h2 className="text-2xl font-bold">Soul Sync</h2>
         </div>
         <nav className="flex ml-auto gap-7 text-lg">
           <a href="/about" className="hover:text-purple-300 transition-colors">About</a>
@@ -174,7 +174,7 @@ const HomePage = () => {
             onClick={() => handleStartChat("/register")}
             className="px-8 py-4 bg-gradient-to-r from-purple-500 to-pink-500 text-white text-lg font-semibold rounded-lg hover:from-purple-600 hover:to-pink-600 transition-all transform hover:scale-105"
           >
-            Chat with Woman AI
+            Chat with Woman specific AI
           </motion.button>
           <motion.button
             initial={{ opacity: 0, y: 20 }}

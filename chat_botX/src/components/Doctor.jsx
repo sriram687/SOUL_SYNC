@@ -72,7 +72,7 @@ export default function DoctorAdvice() {
         <div className="flex items-center gap-3">
         <Link to="/" className="flex items-center gap-2 cursor-pointer">
       <Brain className="w-10 h-10 text-white" />
-  <h1 className="text-2xl font-bold">MindCare</h1>
+  <h1 className="text-2xl font-bold">Soul Sync</h1>
 </Link>
         </div>
       </header>

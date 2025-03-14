@@ -7,8 +7,8 @@ import Login from "./components/Login"
 import Resources from "./components/Resources";
 import About from "./components/About";
 import Doctor from "./components/Doctor";
-
-
+import Calender from './components/Calender.jsx';
+import Details from './components/Details.jsx';
 
 
 function App(){
@@ -22,6 +22,8 @@ function App(){
       <Route path='/login' element={<Login/>}/>
       <Route path="/resources" element={<Resources />} />
       <Route path="/doctor" element={<Doctor />} />
+      <Route path="/calender" element={<Calender/>}/>
+      <Route path="/details" element={<Details/>}/>
       </Routes>
     </Router>
   )

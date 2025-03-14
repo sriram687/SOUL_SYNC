@@ -38,9 +38,10 @@ GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 genai.configure(api_key=GEMINI_API_KEY)
 model = genai.GenerativeModel('gemini-1.5-flash')
 
-# Voice synthesis API configuration
-VOICE_API_KEY = os.getenv("VOICE_API_KEY")  # API key for your voice cloning service
-VOICE_API_URL = os.getenv("VOICE_API_URL", "https://api.voice-synthesis-service.com/synthesize")  # Replace with actual voice API URL
+# ElevenLabs voice API configuration
+ELEVENLABS_API_KEY = os.getenv("ELEVENLABS_API_KEY", "sk_47fc2867130eea668e25be615fcb078035d1017785533f12")
+DEFAULT_VOICE_ID = os.getenv("DEFAULT_VOICE_ID", "SLVLJ4RCTvobsWx1j1Ds")  # Default voice ID
+ELEVENLABS_API_URL = "https://api.elevenlabs.io/v1"
 
 @app.route("/gemini_chat", methods=["POST"])
 @jwt_required()
@@ -77,7 +78,7 @@ def gemini_chat():
                 "You are a supportive and empathetic chatbot designed to provide comfort, encouragement, "
                 "and thoughtful responses to users, particularly women, on emotional and mental well-being topics. "
                 "Your goal is to create a safe space for users to express themselves while offering appropriate guidance. "
-                "Respond concisely (within 1000 words) while maintaining warmth and reassurance.\n\nUser: " + user_input
+                "Respond concisely (within 30 words) while maintaining warmth and reassurance.\n\nUser: " + user_input
             )
 
         responses = model.generate_content(prompt, stream=True)
@@ -86,18 +87,34 @@ def gemini_chat():
         for response in responses:
             full_response += response.text
 
-        # Limit response to 50 words
+        # Limit response to 100 words
         short_response = " ".join(full_response.split()[:100])
 
         # If using voice output mode with user's voice, generate audio file
         audio_url = None
-        if output_mode == "voice" and use_user_voice:
+        if output_mode == "voice":
             # Get user's voice profile
             voice_profile = voice_profiles.find_one({"email": user_email})
             
-            if voice_profile and "voiceProfileId" in voice_profile:
+            if use_user_voice and voice_profile and "voiceId" in voice_profile:
                 # Generate speech using user's voice profile
-                audio_url = generate_speech_with_user_voice(short_response, voice_profile["voiceProfileId"])
+                voice_id = voice_profile["voiceId"]
+            else:
+                # Use default voice
+                voice_id = DEFAULT_VOICE_ID
+                
+            # Generate speech with ElevenLabs
+            audio_data = generate_speech_with_elevenlabs(short_response, voice_id)
+            
+            if audio_data:
+                # Save the audio file
+                filename = f"{uuid.uuid4()}.mp3"
+                file_path = os.path.join(tempfile.gettempdir(), filename)
+                
+                with open(file_path, "wb") as f:
+                    f.write(audio_data)
+                
+                audio_url = f"/api/audio/{filename}"
         
         return jsonify({
             "response": short_response,
@@ -108,42 +125,28 @@ def gemini_chat():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-def generate_speech_with_user_voice(text, voice_profile_id):
-    """
-    Generate speech using the user's voice profile through a voice synthesis API.
-    Returns a URL to the generated audio file.
-    """
+def generate_speech_with_elevenlabs(text, voice_id):
+    """Generate speech using ElevenLabs API"""
     try:
-        # Call the voice synthesis API
-        response = requests.post(
-            VOICE_API_URL,
-            json={
-                "text": text,
-                "voice_id": voice_profile_id
-            },
-            headers={
-                "Authorization": f"Bearer {VOICE_API_KEY}",
-                "Content-Type": "application/json"
+        url = f"{ELEVENLABS_API_URL}/text-to-speech/{voice_id}"
+        headers = {
+            "Content-Type": "application/json",
+            "xi-api-key": ELEVENLABS_API_KEY
+        }
+        payload = {
+            "text": text,
+            "voice_settings": {
+                "stability": 0.5,
+                "similarity_boost": 0.75
             }
-        )
+        }
+        
+        response = requests.post(url, json=payload, headers=headers)
         
         if response.status_code == 200:
-            # For APIs that return audio directly
-            audio_data = response.content
-            
-            # Generate a unique filename
-            filename = f"{uuid.uuid4()}.mp3"
-            file_path = os.path.join(tempfile.gettempdir(), filename)
-            
-            # Save the audio file temporarily
-            with open(file_path, "wb") as f:
-                f.write(audio_data)
-            
-            # In a production environment, you'd upload this to cloud storage
-            # For this example, we'll return a local path that would be served by your Flask app
-            return f"/api/audio/{filename}"
+            return response.content  # Return audio binary data
         else:
-            print(f"Voice API error: {response.status_code} - {response.text}")
+            print(f"ElevenLabs API error: {response.status_code} - {response.text}")
             return None
             
     except Exception as e:
@@ -159,55 +162,69 @@ def get_audio_file(filename):
     else:
         return jsonify({"error": "Audio file not found"}), 404
 
-@app.route("/upload_voice_profile", methods=["POST"])
+@app.route("/upload_voice_sample", methods=["POST"])
 @jwt_required()
-def upload_voice_profile():
-    """Upload and process user's voice sample to create a voice profile"""
+def upload_voice_sample():
+    """Upload user's voice sample to ElevenLabs and save the voice ID"""
     user_email = get_jwt_identity()
     
     if 'voiceSample' not in request.files:
         return jsonify({"error": "No voice sample provided"}), 400
         
     voice_sample = request.files['voiceSample']
+    name = request.form.get('name', f"User_{user_email.split('@')[0]}")
     
     try:
         # Save the voice sample temporarily
-        temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.wav')
+        temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.mp3')
         voice_sample.save(temp_file.name)
         temp_file.close()
         
-        # Upload to voice cloning service and create profile
+        # Upload to ElevenLabs and create voice
         with open(temp_file.name, 'rb') as f:
-            files = {'file': f}
+            files = {
+                'files': (os.path.basename(temp_file.name), f, 'audio/mpeg')
+            }
+            data = {
+                'name': name,
+                'description': f"Voice profile for {user_email}"
+            }
+            
             response = requests.post(
-                f"{VOICE_API_URL}/create_profile",
-                files=files,
-                headers={"Authorization": f"Bearer {VOICE_API_KEY}"}
+                f"{ELEVENLABS_API_URL}/voices/add",
+                headers={"xi-api-key": ELEVENLABS_API_KEY},
+                data=data,
+                files=files
             )
         
         # Clean up temporary file
         os.unlink(temp_file.name)
         
         if response.status_code != 200:
-            return jsonify({"error": f"Voice API error: {response.text}"}), 500
+            return jsonify({"error": f"ElevenLabs API error: {response.text}"}), 500
             
-        # Get the voice profile ID from the response
-        voice_profile_data = response.json()
-        voice_profile_id = voice_profile_data.get("voice_id")
+        # Get the voice ID from the response
+        voice_data = response.json()
+        voice_id = voice_data.get("voice_id")
         
-        if not voice_profile_id:
-            return jsonify({"error": "Failed to get voice profile ID from API"}), 500
+        if not voice_id:
+            return jsonify({"error": "Failed to get voice ID from API"}), 500
             
-        # Store the voice profile ID in the database
+        # Store the voice ID in the database
         voice_profiles.update_one(
             {"email": user_email},
-            {"$set": {"voiceProfileId": voice_profile_id, "createdAt": datetime.now(timezone.utc)}},
+            {"$set": {
+                "voiceId": voice_id,
+                "name": name,
+                "createdAt": datetime.now(timezone.utc)
+            }},
             upsert=True
         )
         
         return jsonify({
             "message": "Voice profile created successfully",
-            "voiceProfileId": voice_profile_id
+            "voiceId": voice_id,
+            "name": name
         })
         
     except Exception as e:
@@ -225,7 +242,8 @@ def get_user_voice_profile():
         return jsonify({"message": "No voice profile found"}), 404
         
     return jsonify({
-        "voiceProfile": voice_profile.get("voiceProfileId"),
+        "voiceId": voice_profile.get("voiceId"),
+        "name": voice_profile.get("name"),
         "createdAt": voice_profile.get("createdAt")
     })
 
@@ -263,7 +281,9 @@ def update_user_preferences():
         upsert=True
     )
     
-    return jsonify({"message": "Preferences updated successfully"})
+    return jsonify({"message": "Preferences updated successfully"}) 
+
+
 
 @app.after_request
 def after_request(response):

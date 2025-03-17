@@ -6,6 +6,9 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Send, Mic, MicOff, LogOut, Smile, Brain, Trash2, Volume2, VolumeX, Save, Loader, UserRound, MessageCircle } from 'lucide-react';
 import { Link } from "react-router-dom";
 
+// Import the ElevenLabs API functions
+import { uploadVoiceClone, textToSpeech } from "../utils/elevenlabs";
+
 const ChatPage = () => {
   const [messages, setMessages] = useState([
     { role: "bot", content: "Hello! How can I assist you today?" },
@@ -26,14 +29,34 @@ const ChatPage = () => {
   const [recordingBlob, setRecordingBlob] = useState(null);
   const mediaRecorderRef = useRef(null);
   const audioChunksRef = useRef([]);
-  // New state variables for voice profile
   const [hasVoiceProfile, setHasVoiceProfile] = useState(false);
   const [voiceProfileInfo, setVoiceProfileInfo] = useState(null);
+  
   // User preferences
   const [preferences, setPreferences] = useState({
     outputMode: "text",
     useUserVoice: false
   });
+
+  // Generate speech from text using ElevenLabs API
+  const generateVoiceResponse = async (text) => {
+    const voiceId = localStorage.getItem('elevenLabsVoiceId');
+
+    if (!voiceId) {
+      alert("No voice cloned yet!");
+      return;
+    }
+
+    try {
+      const audioUrl = await textToSpeech(text, voiceId);
+      
+      // Play the audio
+      const audio = new Audio(audioUrl);
+      audio.play();
+    } catch (error) {
+      console.error('TTS generation failed:', error);
+    }
+  };
 
   useEffect(() => {     
     const token = localStorage.getItem("token");
@@ -46,8 +69,8 @@ const ChatPage = () => {
     }
   
     fetchChatHistory();
-    fetchUserVoiceProfile();
-    fetchVoiceProfile(); // Added new function call
+    // fetchUserVoiceProfile();
+    // fetchVoiceProfile();
   
     // Set up speech recognition
     if ("webkitSpeechRecognition" in window) {
@@ -86,41 +109,43 @@ const ChatPage = () => {
     };
   }, [navigate]);
 
-  const fetchVoiceProfile = async () => {
-    const token = localStorage.getItem("token");
-    if (!token) return;
+  // // Fetch user voice profile from server
+  // const fetchVoiceProfile = async () => {
+  //   const token = localStorage.getItem("token");
+  //   if (!token) return;
     
-    try {
-      const response = await axios.get("http://localhost:5000/get_user_voice_profile", {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+  //   try {
+  //     const response = await axios.get("http://localhost:5000/get_user_voice_profile", {
+  //       headers: { Authorization: `Bearer ${token}` },
+  //     });
       
-      if (response.status === 200) {
-        setHasVoiceProfile(true);
-        setVoiceProfileInfo(response.data);
-      }
-    } catch (error) {
-      console.error("Error fetching voice profile:", error);
-    }
-  };
+  //     if (response.status === 200) {
+  //       setHasVoiceProfile(true);
+  //       setVoiceProfileInfo(response.data);
+  //     }
+  //   } catch (error) {
+  //     console.error("Error fetching voice profile:", error);
+  //   }
+  // };
 
-  const fetchUserVoiceProfile = async () => {
-    const token = localStorage.getItem("token");
-    if (!token) return;
+  // const fetchUserVoiceProfile = async () => {
+  //   const token = localStorage.getItem("token");
+  //   if (!token) return;
     
-    try {
-      const response = await axios.get("http://localhost:5000/get_user_voice_profile", {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+  //   try {
+  //     const response = await axios.get("http://localhost:5000/get_user_voice_profile", {
+  //       headers: { Authorization: `Bearer ${token}` },
+  //     });
       
-      if (response.data && response.data.voiceProfile) {
-        setUserVoiceProfile(response.data.voiceProfile);
-      }
-    } catch (error) {
-      console.error("Error fetching user voice profile:", error);
-    }
-  };
+  //     if (response.data && response.data.voiceProfile) {
+  //       setUserVoiceProfile(response.data.voiceProfile);
+  //     }
+  //   } catch (error) {
+  //     console.error("Error fetching user voice profile:", error);
+  //   }
+  // };
   
+  // Record user voice using MediaRecorder API
   const startVoiceRecording = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -158,48 +183,72 @@ const ChatPage = () => {
     }
   };
   
-  const saveVoiceProfile = async () => {
+  // Clone voice using ElevenLabs API
+  const saveAndCloneVoice = async () => {
     if (!recordingBlob) {
       alert("Please record a voice sample first.");
       return;
     }
-    
-    const token = localStorage.getItem("token");
-    if (!token) return;
-    
-    const formData = new FormData();
-    formData.append('voiceSample', recordingBlob, 'voice-sample.mp3');
-    formData.append('name', 'My Voice Profile'); // Can be made a user input
-    
+  
     setIsLoading(true);
-    
+  
     try {
-      const response = await axios.post(
-        "http://localhost:5000/upload_voice_profile",
-        formData,
-        { 
-          headers: { 
-            Authorization: `Bearer ${token}`,
-            'Content-Type': 'multipart/form-data'
-          } 
-        }
-      );
-      
-      if (response.data && response.data.voiceProfileId) {
-        setUserVoiceProfile(response.data.voiceProfileId);
-        alert("Voice profile saved successfully!");
-        setRecordingBlob(null); // Clear the recording after successful upload
-        fetchVoiceProfile(); // Refresh voice profile info
-        setHasVoiceProfile(true);
-      }
+      // Upload the voice to ElevenLabs and get the voice_id
+      const voiceId = await uploadVoiceClone(recordingBlob);
+      console.log("Cloned Voice ID:", voiceId);
+  
+      // Save the voice_id in localStorage
+      localStorage.setItem('elevenLabsVoiceId', voiceId);
+      alert("Voice cloned successfully!");
     } catch (error) {
-      console.error("Error saving voice profile:", error);
-      alert("Failed to save voice profile. Please try again later.");
+      console.error("Error cloning voice:", error);
+      alert("Failed to clone voice.");
     } finally {
       setIsLoading(false);
     }
   };
   
+  // // Save voice profile to server
+  // const saveVoiceProfile = async () => {
+  //   const token = localStorage.getItem("token");
+  //   if (!token) return;
+    
+  //   const formData = new FormData();
+  //   formData.append('voiceSample', recordingBlob, 'voice-sample.mp3');
+  //   formData.append('name', 'My Voice Profile');
+    
+  //   setIsLoading(true);
+    
+  //   try {
+  //     const response = await axios.post(
+  //       "http://localhost:5000/upload_voice_profile",
+  //       formData,
+  //       { 
+  //         headers: { 
+  //           Authorization: `Bearer ${token}`,
+  //           'Content-Type': 'multipart/form-data'
+  //         } 
+  //       }
+  //     );
+      
+  //     if (response.data && response.data.voiceProfileId) {
+  //       setUserVoiceProfile(response.data.voiceProfileId);
+  //       alert("Voice profile saved successfully!");
+  //       setRecordingBlob(null); // Clear the recording after successful upload
+  //       fetchVoiceProfile(); // Refresh voice profile info
+  //       setHasVoiceProfile(true);
+  //     }
+  //   } catch (error) {
+  //     console.error("Error saving voice profile:", error);
+  //     alert("Failed to save voice profile. Please try again later.");
+  //   } finally {
+  //     setIsLoading(false);
+  //   }
+  // };
+  
+
+
+  // Fetch chat history from server
   const fetchChatHistory = async () => {
     const token = localStorage.getItem("token");
     
@@ -220,6 +269,7 @@ const ChatPage = () => {
     }
   };
 
+  // Delete message from chat history
   const handleDeleteMessage = async (messageId, event) => {
     // Prevent event bubbling
     if (event) {
@@ -255,6 +305,7 @@ const ChatPage = () => {
     }
   };
 
+  // Update user preferences
   const updatePreferences = (newValues) => {
     setPreferences(prev => ({...prev, ...newValues}));
     
@@ -270,6 +321,7 @@ const ChatPage = () => {
     }
   };
 
+  // Speak text using browser's speech synthesis API
   const speakText = (text) => {
     // Check if speech synthesis is available and in voice mode
     if (speechSynthesisRef.current && preferences.outputMode === "voice") {
@@ -286,9 +338,7 @@ const ChatPage = () => {
         // Get available voices
         const voices = speechSynthesisRef.current.getVoices();
         
-        // Try to find the best matching voice (this is a simplified approach)
-        // In a real implementation, you would use the actual user voice model
-        // Default to a female voice as it's for a women-focused mental health app
+        // Try to find the best matching voice
         const femaleVoices = voices.filter(voice => 
           voice.name.includes('female') || 
           voice.name.includes('woman') || 
@@ -298,9 +348,6 @@ const ChatPage = () => {
         if (femaleVoices.length > 0) {
           utterance.voice = femaleVoices[0];
         }
-        
-        // In a real implementation with a voice cloning API, you would use:
-        // utterance.voiceURI = `custom://${userVoiceProfile}`;
       }
       
       // Set voice properties
@@ -313,6 +360,7 @@ const ChatPage = () => {
     }
   };
 
+  // Send message to chat
   const handleSendMessage = async () => {
     if (!input.trim() || isLoading) return;
   
@@ -354,29 +402,28 @@ const ChatPage = () => {
         { headers: { Authorization: `Bearer ${token}` } }
       );
   
+      // Add bot's response to the chat
       const newBotMessage = { role: "bot", content: botResponse };
       setMessages((prev) => [...prev, newBotMessage]);
-      
-      // If in voice mode, speak the response
-      speakText(botResponse);
-      
+
+      // If in voice mode, generate TTS using the cloned voice
+      if (preferences.outputMode === "voice") {
+        await generateVoiceResponse(botResponse);
+      }
     } catch (error) {
       console.error("Error sending message:", error);
       const errorMessage = "I encountered an issue. Please try again later.";
       setMessages((prev) => [
         ...prev,
-        {
-          role: "bot",
-          content: errorMessage
-        },
+        { role: "bot", content: errorMessage },
       ]);
     } finally {
       setIsLoading(false);
     }
   };
 
+  // Toggle between text and voice output modes
   const toggleOutputMode = () => {
-    // Toggle between text and voice mode
     const newMode = outputMode === "text" ? "voice" : "text";
     setOutputMode(newMode);
     setPreferences(prev => ({...prev, outputMode: newMode}));
@@ -421,6 +468,7 @@ const ChatPage = () => {
 
   const startRecording = () => recognition && recognition.start();
   const stopRecording = () => recognition && recognition.stop();
+
 
   return (
     <div className="relative min-h-screen bg-gradient-to-b from-purple-100 via-white to-purple-100 overflow-hidden">
@@ -615,7 +663,7 @@ const ChatPage = () => {
                     className="w-full h-8 mt-2"
                   />
                   <button
-                    onClick={saveVoiceProfile}
+                    onClick={saveAndCloneVoice}
                     disabled={isLoading}
                     className="w-full mt-2 flex items-center justify-center bg-purple-600 hover:bg-purple-700 text-white p-2 rounded-lg transition-all"
                   >

@@ -9,6 +9,7 @@ import About from "./components/About";
 import Doctor from "./components/Doctor";
 import Calender from './components/Calender.jsx';
 import Details from './components/Details.jsx';
+import Nutrition from './Nutrition/Nutrition.jsx';
 
 
 function App(){
@@ -24,6 +25,7 @@ function App(){
       <Route path="/doctor" element={<Doctor />} />
       <Route path="/calender" element={<Calender/>}/>
       <Route path="/details" element={<Details/>}/>
+      <Route path="/nutrition" element={<Nutrition/>}/>
       </Routes>
     </Router>
   )

@@ -115,7 +115,7 @@ const ChatPage = () => {
   //   if (!token) return;
     
   //   try {
-  //     const response = await axios.get("http://localhost:5000/get_user_voice_profile", {
+  //     const response = await axios.get("import.meta.env.VITE_BACKEND_URL/get_user_voice_profile", {
   //       headers: { Authorization: `Bearer ${token}` },
   //     });
       
@@ -133,7 +133,7 @@ const ChatPage = () => {
   //   if (!token) return;
     
   //   try {
-  //     const response = await axios.get("http://localhost:5000/get_user_voice_profile", {
+  //     const response = await axios.get("import.meta.env.VITE_BACKEND_URL/get_user_voice_profile", {
   //       headers: { Authorization: `Bearer ${token}` },
   //     });
       
@@ -221,7 +221,7 @@ const ChatPage = () => {
     
   //   try {
   //     const response = await axios.post(
-  //       "http://localhost:5000/upload_voice_profile",
+  //       "import.meta.env.VITE_BACKEND_URL/upload_voice_profile",
   //       formData,
   //       { 
   //         headers: { 
@@ -260,7 +260,7 @@ const ChatPage = () => {
     }
 
     try {
-      const response = await axios.get("http://localhost:5000/get_chat_history", {
+      const response = await axios.get(`${import.meta.env.VITE_BACKEND_URL}/get_chat_history`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       setMessages(response.data);
@@ -287,7 +287,7 @@ const ChatPage = () => {
     setMessages((prev) => prev.filter((msg) => msg._id !== messageId));
     
     try {
-      const response = await axios.delete("http://localhost:5000/delete_message", {
+      const response = await axios.delete(`${import.meta.env.VITE_BACKEND_URL}/delete_message`, {
         headers: { Authorization: `Bearer ${token}` },
         data: { message_id: messageId },
       });
@@ -379,7 +379,7 @@ const ChatPage = () => {
     try {
       console.log("send: ", token);
       const response = await axios.post(
-        "http://localhost:5000/gemini_chat",
+        `${import.meta.env.VITE_BACKEND_URL}/gemini_chat`,
         { 
           message: input,
           outputMode: preferences.outputMode,
@@ -391,13 +391,13 @@ const ChatPage = () => {
       const botResponse = response.data.response;
 
       await axios.post(
-        "http://localhost:5000/store_message",
+        `${import.meta.env.VITE_BACKEND_URL}/store_message`,
         { message: input, role: "user" },
         { headers: { Authorization: `Bearer ${token}` } }
       );
   
       await axios.post(
-        "http://localhost:5000/store_message",
+        `${import.meta.env.VITE_BACKEND_URL}/store_message`,
         { message: botResponse, role: "bot" },
         { headers: { Authorization: `Bearer ${token}` } }
       );
@@ -446,7 +446,7 @@ const ChatPage = () => {
     }
 
     try {
-     axios.post("http://localhost:5000/logout", {}, {
+     axios.post(`${import.meta.env.VITE_BACKEND_URL}/logout`, {}, {
         headers: { Authorization: `Bearer ${token}` }
       });
 

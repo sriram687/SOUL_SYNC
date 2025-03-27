@@ -19,13 +19,34 @@ load_dotenv()
 app = Flask(__name__)
 app.config['JWT_SECRET_KEY'] = os.getenv('JWT_SECRET_KEY', 'default-secret-key')
 CORS(app)
+CLIENT_ID = os.getenv("CLIENT_ID")
+CLIENT_SECRET = os.getenv("CLIENT_SECRET")
+TOKEN_URL = "https://oauth.fatsecret.com/connect/token"
+
+
+#Getting access token for FatSecret API
+def get_access_token():
+    data = {
+        "grant_type": "client_credentials",
+        "client_id": CLIENT_ID,
+        "client_secret": CLIENT_SECRET,
+        "scope": "basic"
+    }
+    response = requests.post(TOKEN_URL, data=data)
+    if response.status_code == 200:
+        print("API fetches successfully")
+        return response.json().get("access_token")
+    else:
+        return None
+    
+
 
 # Initialize bcrypt and JWT
 bcrypt = Bcrypt(app)
 jwt = JWTManager(app)
 
 # MongoDB connection setup
-MONGO_URI = os.getenv("MONGO_URI", "mongodb+srv://sriram:Thehope123@cluster0.tovxt.mongodb.net/mental_health?retryWrites=true&w=majority")
+MONGO_URI = os.getenv("MONGO_URL")
 client = MongoClient(MONGO_URI)
 db = client["mental_health"]
 users_collection = db["users"]
@@ -42,6 +63,30 @@ model = genai.GenerativeModel('gemini-1.5-flash')
 ELEVENLABS_API_KEY = os.getenv("ELEVENLABS_API_KEY", "sk_47fc2867130eea668e25be615fcb078035d1017785533f12")
 DEFAULT_VOICE_ID = os.getenv("DEFAULT_VOICE_ID", "SLVLJ4RCTvobsWx1j1Ds")  # Default voice ID
 ELEVENLABS_API_URL = "https://api.elevenlabs.io/v1"
+
+# API Endpoint to fetch food details
+@app.route("/api/nutrition", methods=["GET"])
+def get_nutrition():
+    food_query = request.args.get("food")
+    if not food_query:
+        return jsonify({"error": "Food query parameter is required"}), 400
+    
+    access_token = get_access_token()
+    if not access_token:
+        return jsonify({"error": "Failed to get access token"}), 500
+    
+    url = f"https://platform.fatsecret.com/rest/server.api"
+    headers = {"Authorization": f"Bearer {access_token}"}
+    params = {
+        "method": "foods.search",
+        "search_expression": food_query,
+        "format": "json"
+    }
+    
+    response = requests.get(url, headers=headers, params=params)
+    return jsonify(response.json())
+
+
 
 @app.route("/gemini_chat", methods=["POST"])
 @jwt_required()

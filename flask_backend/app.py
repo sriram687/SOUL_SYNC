@@ -65,27 +65,28 @@ DEFAULT_VOICE_ID = os.getenv("DEFAULT_VOICE_ID", "SLVLJ4RCTvobsWx1j1Ds")  # Defa
 ELEVENLABS_API_URL = "https://api.elevenlabs.io/v1"
 
 # API Endpoint to fetch food details
-@app.route("/api/nutrition", methods=["GET"])
-def get_nutrition():
-    food_query = request.args.get("food")
-    if not food_query:
-        return jsonify({"error": "Food query parameter is required"}), 400
+@app.route('/api/nutrition/get', methods=['GET'])
+def get_food():
+    try:
+        food_id = request.args.get('food_id')
+        token = get_access_token()
+        
+        params = {
+            'method': 'food.get',
+            'food_id': food_id,
+            'format': 'json'
+        }
+        
+        headers = {
+            'Authorization': f'Bearer {token}'
+        }
+        
+        API_BASE_URL = "https://platform.fatsecret.com/rest/server.api"
+        response = requests.get(API_BASE_URL, params=params, headers=headers)
+        return jsonify(response.json())
     
-    access_token = get_access_token()
-    if not access_token:
-        return jsonify({"error": "Failed to get access token"}), 500
-    
-    url = f"https://platform.fatsecret.com/rest/server.api"
-    headers = {"Authorization": f"Bearer {access_token}"}
-    params = {
-        "method": "foods.search",
-        "search_expression": food_query,
-        "format": "json"
-    }
-    
-    response = requests.get(url, headers=headers, params=params)
-    return jsonify(response.json())
-
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 
 @app.route("/gemini_chat", methods=["POST"])
@@ -197,6 +198,61 @@ def generate_speech_with_elevenlabs(text, voice_id):
     except Exception as e:
         print(f"Error generating speech: {str(e)}")
         return None
+    
+
+
+
+@app.route('/api/nutrition/search', methods=['GET'])
+def search_food():
+    try:
+        query = request.args.get('query')
+        token = get_access_token()
+        
+        params = {
+            'method': 'foods.search',
+            'search_expression': query,
+            'format': 'json'
+        }
+        
+        headers = {
+            'Authorization': f'Bearer {token}'
+        }
+        
+        API_BASE_URL = "https://platform.fatsecret.com/rest/server.api"
+        response = requests.get(API_BASE_URL, params=params, headers=headers)
+        return jsonify(response.json())
+    
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+
+
+@app.route('/api/nutrition/autocomplete', methods=['GET'])
+def autocomplete_food():
+    try:
+        query = request.args.get('query')
+        token = get_access_token()
+        
+        params = {
+            'method': 'foods.autocomplete',
+            'expression': query,
+            'format': 'json'
+        }
+        
+        headers = {
+            'Authorization': f'Bearer {token}'
+        }
+        
+        API_BASE_URL = "https://platform.fatsecret.com/rest/server.api"
+        response = requests.get(API_BASE_URL, params=params, headers=headers)
+        return jsonify(response.json())
+    
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+
 
 @app.route("/api/audio/<filename>", methods=["GET"])
 def get_audio_file(filename):
@@ -206,6 +262,9 @@ def get_audio_file(filename):
         return send_file(file_path, mimetype="audio/mpeg")
     else:
         return jsonify({"error": "Audio file not found"}), 404
+    
+
+
 
 @app.route("/upload_voice_sample", methods=["POST"])
 @jwt_required()
@@ -336,6 +395,8 @@ def after_request(response):
     response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
     response.headers.add('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS')
     return response
+
+
 
 @app.route('/register', methods=['POST'])
 def register():

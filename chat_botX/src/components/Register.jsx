@@ -13,7 +13,7 @@ const RegisterPage = () => {
   const handleRegister = async (e) => {
     e.preventDefault();
     try {
-      await axios.post("http://127.0.0.1:5000/register", { email, password });
+      await axios.post(`${import.meta.env.VITE_BACKEND_URL}/register`, { email, password });
       toast.success("Registration successful! Please log in.");
     } catch (error) {
       if (error.response && error.response.status === 400) {

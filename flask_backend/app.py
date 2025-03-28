@@ -39,6 +39,7 @@ def get_access_token():
     else:
         return None
     
+    
 
 
 # Initialize bcrypt and JWT

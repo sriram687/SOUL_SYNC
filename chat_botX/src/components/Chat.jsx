@@ -38,6 +38,9 @@ const ChatPage = () => {
     useUserVoice: false
   });
 
+  // Add new state for voice settings visibility
+  const [showVoiceSettings, setShowVoiceSettings] = useState(false);
+
   // Generate speech from text using ElevenLabs API
   const generateVoiceResponse = async (text) => {
     const voiceId = localStorage.getItem('elevenLabsVoiceId');
@@ -158,6 +161,7 @@ const ChatPage = () => {
         if (event.data.size > 0) {
           audioChunksRef.current.push(event.data);
         }
+        
       };
       
       mediaRecorder.onstop = () => {
@@ -321,42 +325,32 @@ const ChatPage = () => {
     }
   };
 
-  // Speak text using browser's speech synthesis API
-  const speakText = (text) => {
-    // Check if speech synthesis is available and in voice mode
-    if (speechSynthesisRef.current && preferences.outputMode === "voice") {
-      // Cancel any ongoing speech
-      if (speechSynthesisRef.current.speaking) {
-        speechSynthesisRef.current.cancel();
-      }
-      
-      // Create a new utterance
-      const utterance = new SpeechSynthesisUtterance(text);
-      
-      // If we have a user voice profile and user voice is selected
-      if (userVoiceProfile && preferences.useUserVoice) {
-        // Get available voices
-        const voices = speechSynthesisRef.current.getVoices();
-        
-        // Try to find the best matching voice
-        const femaleVoices = voices.filter(voice => 
-          voice.name.includes('female') || 
-          voice.name.includes('woman') || 
-          voice.name.includes('girl')
-        );
-        
-        if (femaleVoices.length > 0) {
-          utterance.voice = femaleVoices[0];
+  // Speak text using ElevenLabs API or browser's speech synthesis
+  const speakText = async (text) => {
+    if (preferences.outputMode === "voice") {
+      if (preferences.useUserVoice) {
+        // Use cloned voice from ElevenLabs
+        try {
+          await generateVoiceResponse(text);
+        } catch (error) {
+          console.error("Error generating voice response:", error);
+          alert("Failed to generate voice response. Please try again.");
+        }
+      } else {
+        // Use browser's speech synthesis
+        if (speechSynthesisRef.current) {
+          if (speechSynthesisRef.current.speaking) {
+            speechSynthesisRef.current.cancel();
+          }
+          
+          const utterance = new SpeechSynthesisUtterance(text);
+          utterance.rate = 1.0;
+          utterance.pitch = 1.0;
+          utterance.volume = 1.0;
+          
+          speechSynthesisRef.current.speak(utterance);
         }
       }
-      
-      // Set voice properties
-      utterance.rate = 1.0; // Speed
-      utterance.pitch = 1.0; // Pitch
-      utterance.volume = 1.0; // Volume
-      
-      // Speak the text
-      speechSynthesisRef.current.speak(utterance);
     }
   };
 
@@ -471,7 +465,7 @@ const ChatPage = () => {
 
 
   return (
-    <div className="relative min-h-screen bg-gradient-to-b from-purple-100 via-white to-purple-100 overflow-hidden">
+    <div className="relative h-screen bg-gradient-to-b from-purple-100 via-white to-purple-100 overflow-hidden">
       {/* Background Pattern */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute w-full h-full -left-48 -top-48 bg-purple-200/40 rounded-full blur-3xl animate-pulse" />
@@ -479,213 +473,247 @@ const ChatPage = () => {
         <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI2MCIgaGVpZ2h0PSI2MCI+CiAgPHBhdGggZD0iTTAgMGg2MHY2MEgweiIgZmlsbD0ibm9uZSIvPgogIDxwYXRoIGQgPSJNMzAgMzBtLTIwIDBhMjAgMjAgMCAxIDAgNDAgMCAyMCAyMCAwIDEgMC00MCAwIiBzdHJva2U9InJnYmEoMTQ3LCA1MSwgMjM0LCAwLjEpIiBmaWxsPSJub25lIi8+Cjwvc3ZnPg==')] opacity-30" />
       </div>
 
-      <div className="relative flex h-screen">
+      <div className="relative flex h-full overflow-hidden">
         {/* Sidebar */}
-        <div className="w-80 bg-white/80 backdrop-blur-xl border-r border-purple-100">
-          {/* Logo */}
-          <div className="p-6 border-b border-purple-100">
-            <div className="flex items-center space-x-3">
+        <div className="w-80 bg-white/80 backdrop-blur-xl border-r border-purple-100 flex flex-col overflow-hidden">
+          {/* Logo - Fixed */}
+          <div className="p-6 border-b border-purple-100 flex-shrink-0">
+            <div className="flex items-center justify-between">
               <Link to="/" className="flex items-center gap-2 cursor-pointer">
                 <Brain className="w-8 h-8 text-purple-600" />
                 <h1 className="text-2xl font-bold bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">
                   Soul Sync
                 </h1>
               </Link>
+              <button
+                onClick={() => setShowVoiceSettings(!showVoiceSettings)}
+                className="p-2 rounded-lg hover:bg-purple-50 transition-all text-purple-600"
+                title={showVoiceSettings ? "Show Chat History" : "Show Voice Settings"}
+              >
+                {showVoiceSettings ? <MessageCircle size={20} /> : <Volume2 size={20} />}
+              </button>
             </div>
           </div>
 
-          {/* Chat History */}
-          <div className="p-6">
-            <h2 className="text-lg font-semibold text-purple-900 mb-4">Chat History</h2>
-            <div className="space-y-3">
-              {messages.map((msg, index) => (
+          {/* Chat History or Voice Settings - Toggleable */}
+          <div className="flex-1 overflow-hidden">
+            <AnimatePresence mode="wait">
+              {!showVoiceSettings ? (
                 <motion.div
-                  key={msg._id || index}
+                  key="chat-history"
                   initial={{ opacity: 0, x: -20 }}
                   animate={{ opacity: 1, x: 0 }}
-                  transition={{ duration: 0.3, delay: index * 0.05 }}
-                  className="p-3 rounded-lg bg-purple-50 hover:bg-purple-100 transition-all border border-purple-100"
+                  exit={{ opacity: 0, x: 20 }}
+                  transition={{ duration: 0.2 }}
+                  className="h-full overflow-y-auto overflow-x-hidden"
                 >
-                  <div className="flex justify-between items-center">
-                    <p className="text-purple-700 text-sm truncate w-5/6">
-                      {msg.content?.substring(0, 30)}...
-                    </p>
-                    {msg._id && (
-                      <button
-                        onClick={(e) => handleDeleteMessage(msg._id, e)}
-                        className="text-red-500 hover:text-red-700 p-1 rounded-full hover:bg-red-50 transition-all"
-                        aria-label="Delete message"
-                      >
-                        <Trash2 size={16} />
-                      </button>
-                    )}
+                  <div className="p-6">
+                    <h2 className="text-lg font-semibold text-purple-900 mb-4">Chat History</h2>
+                    <div className="space-y-3">
+                      {messages.map((msg, index) => (
+                        <motion.div
+                          key={msg._id || index}
+                          initial={{ opacity: 0, x: -20 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          transition={{ duration: 0.3, delay: index * 0.05 }}
+                          className="p-3 rounded-lg bg-purple-50 hover:bg-purple-100 transition-all border border-purple-100"
+                        >
+                          <div className="flex justify-between items-center">
+                            <p className="text-purple-700 text-sm truncate w-5/6">
+                              {msg.content?.substring(0, 30)}...
+                            </p>
+                            {msg._id && (
+                              <button
+                                onClick={(e) => handleDeleteMessage(msg._id, e)}
+                                className="text-red-500 hover:text-red-700 p-1 rounded-full hover:bg-red-50 transition-all"
+                                aria-label="Delete message"
+                              >
+                                <Trash2 size={16} />
+                              </button>
+                            )}
+                          </div>
+                        </motion.div>
+                      ))}
+                      {messages.length === 0 && (
+                        <div className="text-center p-4 text-purple-400">
+                          No messages yet
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </motion.div>
-              ))}
-              {messages.length === 0 && (
-                <div className="text-center p-4 text-purple-400">
-                  No messages yet
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Voice Profile & Output Mode Section */}
-          <div className="p-6 border-t border-purple-100">
-            <h2 className="text-lg font-semibold text-purple-900 mb-4">Voice Settings</h2>
-            
-            {/* Voice Output Toggle */}
-            <div className="mb-4">
-              <h3 className="text-sm font-medium text-purple-700 mb-2">Output Mode</h3>
-              <div className="flex space-x-2">
-                <button
-                  onClick={() => updatePreferences({ outputMode: "text" })}
-                  className={`flex-1 p-2 rounded-lg transition-all border ${
-                    preferences.outputMode === "text"
-                      ? "bg-purple-100 text-purple-700 border-purple-200"
-                      : "bg-white text-purple-500 border-purple-100"
-                  }`}
+              ) : (
+                <motion.div
+                  key="voice-settings"
+                  initial={{ opacity: 0, x: 20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -20 }}
+                  transition={{ duration: 0.2 }}
+                  className="h-full overflow-y-auto overflow-x-hidden"
                 >
-                  <span className="flex items-center justify-center">
-                    <MessageCircle size={16} className="mr-1" />
-                    Text
-                  </span>
-                </button>
-                <button
-                  onClick={() => updatePreferences({ outputMode: "voice" })}
-                  className={`flex-1 p-2 rounded-lg transition-all border ${
-                    preferences.outputMode === "voice"
-                      ? "bg-purple-100 text-purple-700 border-purple-200"
-                      : "bg-white text-purple-500 border-purple-100"
-                  }`}
-                >
-                  <span className="flex items-center justify-center">
-                    <Volume2 size={16} className="mr-1" />
-                    Voice
-                  </span>
-                </button>
-              </div>
-            </div>
-            
-            {/* Voice Profile Selection - Show only if voice output mode is selected */}
-            {preferences.outputMode === "voice" && (
-              <div className="mb-4">
-                <h3 className="text-sm font-medium text-purple-700 mb-2">Voice Selection</h3>
-                <div className="flex space-x-2">
-                  <button
-                    onClick={() => updatePreferences({ useUserVoice: false })}
-                    className={`flex-1 p-2 rounded-lg transition-all border ${
-                      !preferences.useUserVoice
-                        ? "bg-purple-100 text-purple-700 border-purple-200"
-                        : "bg-white text-purple-500 border-purple-100"
-                    }`}
-                  >
-                    <span className="flex items-center justify-center">
-                      <UserRound size={16} className="mr-1" />
-                      Default Voice
-                    </span>
-                  </button>
-                  <button
-                    onClick={() => updatePreferences({ useUserVoice: true })}
-                    disabled={!hasVoiceProfile}
-                    className={`flex-1 p-2 rounded-lg transition-all border ${
-                      preferences.useUserVoice
-                        ? "bg-purple-100 text-purple-700 border-purple-200"
-                        : hasVoiceProfile
-                          ? "bg-white text-purple-500 border-purple-100"
-                          : "bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed"
-                    }`}
-                  >
-                    <span className="flex items-center justify-center">
-                      <Mic size={16} className="mr-1" />
-                      My Voice
-                    </span>
-                  </button>
-                </div>
-                {!hasVoiceProfile && preferences.useUserVoice && (
-                  <p className="text-xs text-orange-500 mt-1">
-                    Please record and save your voice profile first
-                  </p>
-                )}
-              </div>
-            )}
-            
-            {/* Voice Profile Recording */}
-            <div className="mb-4">
-              <h3 className="text-sm font-medium text-purple-700 mb-2">
-                {hasVoiceProfile ? "Update Voice Profile" : "Create Voice Profile"}
-              </h3>
-              
-              {hasVoiceProfile && voiceProfileInfo && (
-                <div className="mb-2 p-3 bg-purple-50 rounded-lg border border-purple-100">
-                  <p className="text-sm text-purple-700">
-                    <span className="font-medium">Current voice:</span> {voiceProfileInfo?.name || "My Voice"}
-                  </p>
-                  {voiceProfileInfo?.createdAt && (
-                    <p className="text-xs text-purple-500 mt-1">
-                      Created {new Date(voiceProfileInfo.createdAt).toLocaleDateString()}
-                    </p>
-                  )}
-                </div>
-              )}
-              
-              <div className="flex space-x-2">
-                <button
-                  onMouseDown={startVoiceRecording}
-                  onMouseUp={stopVoiceRecording}
-                  onTouchStart={startVoiceRecording}
-                  onTouchEnd={stopVoiceRecording}
-                  className={`flex-1 p-3 rounded-lg transition-all border ${
-                    voiceRecording
-                      ? "bg-red-100 text-red-600 border-red-200"
-                      : "bg-purple-50 text-purple-600 border-purple-100"
-                  }`}
-                >
-                  {voiceRecording ? (
-                    <span className="flex items-center justify-center">
-                      <MicOff size={18} className="mr-2" />
-                      Release to Stop
-                    </span>
-                  ) : (
-                    <span className="flex items-center justify-center">
-                      <Mic size={18} className="mr-2" />
-                      Hold to Record
-                    </span>
-                  )}
-                </button>
-              </div>
-              
-              {recordingBlob && (
-                <div className="mt-2">
-                  <audio 
-                    src={URL.createObjectURL(recordingBlob)} 
-                    controls 
-                    className="w-full h-8 mt-2"
-                  />
-                  <button
-                    onClick={saveAndCloneVoice}
-                    disabled={isLoading}
-                    className="w-full mt-2 flex items-center justify-center bg-purple-600 hover:bg-purple-700 text-white p-2 rounded-lg transition-all"
-                  >
-                    {isLoading ? (
-                      <span className="flex items-center justify-center">
-                        <Loader size={16} className="mr-2 animate-spin" />
-                        Saving...
-                      </span>
-                    ) : (
-                      <span className="flex items-center justify-center">
-                        <Save size={16} className="mr-2" />
-                        Save Voice Profile
-                      </span>
+                  <div className="p-6">
+                    <h2 className="text-lg font-semibold text-purple-900 mb-4">Voice Settings</h2>
+                    
+                    {/* Voice Output Toggle */}
+                    <div className="mb-4">
+                      <h3 className="text-sm font-medium text-purple-700 mb-2">Output Mode</h3>
+                      <div className="flex space-x-2">
+                        <button
+                          onClick={() => updatePreferences({ outputMode: "text" })}
+                          className={`flex-1 p-2 rounded-lg transition-all border ${
+                            preferences.outputMode === "text"
+                              ? "bg-purple-100 text-purple-700 border-purple-200"
+                              : "bg-white text-purple-500 border-purple-100"
+                          }`}
+                        >
+                          <span className="flex items-center justify-center">
+                            <MessageCircle size={16} className="mr-1" />
+                            Text
+                          </span>
+                        </button>
+                        <button
+                          onClick={() => updatePreferences({ outputMode: "voice" })}
+                          className={`flex-1 p-2 rounded-lg transition-all border ${
+                            preferences.outputMode === "voice"
+                              ? "bg-purple-100 text-purple-700 border-purple-200"
+                              : "bg-white text-purple-500 border-purple-100"
+                          }`}
+                        >
+                          <span className="flex items-center justify-center">
+                            <Volume2 size={16} className="mr-1" />
+                            Voice
+                          </span>
+                        </button>
+                      </div>
+                    </div>
+                    
+                    {/* Voice Profile Selection */}
+                    {preferences.outputMode === "voice" && (
+                      <div className="mb-4">
+                        <h3 className="text-sm font-medium text-purple-700 mb-2">Voice Selection</h3>
+                        <div className="flex space-x-2">
+                          <button
+                            onClick={() => updatePreferences({ useUserVoice: false })}
+                            className={`flex-1 p-2 rounded-lg transition-all border ${
+                              !preferences.useUserVoice
+                                ? "bg-purple-100 text-purple-700 border-purple-200"
+                                : "bg-white text-purple-500 border-purple-100"
+                            }`}
+                          >
+                            <span className="flex items-center justify-center">
+                              <UserRound size={16} className="mr-1" />
+                              Default Voice
+                            </span>
+                          </button>
+                          <button
+                            onClick={() => {
+                              const voiceId = localStorage.getItem('elevenLabsVoiceId');
+                              if (!voiceId) {
+                                alert("Please record and save your voice profile first!");
+                                return;
+                              }
+                              updatePreferences({ useUserVoice: true });
+                            }}
+                            className={`flex-1 p-2 rounded-lg transition-all border ${
+                              preferences.useUserVoice
+                                ? "bg-purple-100 text-purple-700 border-purple-200"
+                                : "bg-white text-purple-500 border-purple-100"
+                            }`}
+                          >
+                            <span className="flex items-center justify-center">
+                              <Mic size={16} className="mr-1" />
+                              My Voice
+                            </span>
+                          </button>
+                        </div>
+                        {preferences.useUserVoice && !localStorage.getItem('elevenLabsVoiceId') && (
+                          <p className="text-xs text-orange-500 mt-1">
+                            Please record and save your voice profile first
+                          </p>
+                        )}
+                      </div>
                     )}
-                  </button>
-                </div>
+                    
+                    {/* Voice Profile Recording */}
+                    <div className="mb-4">
+                      <h3 className="text-sm font-medium text-purple-700 mb-2">
+                        {hasVoiceProfile ? "Update Voice Profile" : "Create Voice Profile"}
+                      </h3>
+                      
+                      {hasVoiceProfile && voiceProfileInfo && (
+                        <div className="mb-2 p-3 bg-purple-50 rounded-lg border border-purple-100">
+                          <p className="text-sm text-purple-700">
+                            <span className="font-medium">Current voice:</span> {voiceProfileInfo?.name || "My Voice"}
+                          </p>
+                          {voiceProfileInfo?.createdAt && (
+                            <p className="text-xs text-purple-500 mt-1">
+                              Created {new Date(voiceProfileInfo.createdAt).toLocaleDateString()}
+                            </p>
+                          )}
+                        </div>
+                      )}
+                      
+                      <div className="flex space-x-2">
+                        <button
+                          onMouseDown={startVoiceRecording}
+                          onMouseUp={stopVoiceRecording}
+                          onTouchStart={startVoiceRecording}
+                          onTouchEnd={stopVoiceRecording}
+                          className={`flex-1 p-3 rounded-lg transition-all border ${
+                            voiceRecording
+                              ? "bg-red-100 text-red-600 border-red-200"
+                              : "bg-purple-50 text-purple-600 border-purple-100"
+                          }`}
+                        >
+                          {voiceRecording ? (
+                            <span className="flex items-center justify-center">
+                              <MicOff size={18} className="mr-2" />
+                              Release to Stop
+                            </span>
+                          ) : (
+                            <span className="flex items-center justify-center">
+                              <Mic size={18} className="mr-2" />
+                              Hold to Record
+                            </span>
+                          )}
+                        </button>
+                      </div>
+                      
+                      {recordingBlob && (
+                        <div className="mt-2">
+                          <audio 
+                            src={URL.createObjectURL(recordingBlob)} 
+                            controls 
+                            className="w-full h-8 mt-2"
+                          />
+                          <button
+                            onClick={saveAndCloneVoice}
+                            disabled={isLoading}
+                            className="w-full mt-2 flex items-center justify-center bg-purple-600 hover:bg-purple-700 text-white p-2 rounded-lg transition-all"
+                          >
+                            {isLoading ? (
+                              <span className="flex items-center justify-center">
+                                <Loader size={16} className="mr-2 animate-spin" />
+                                Saving...
+                              </span>
+                            ) : (
+                              <span className="flex items-center justify-center">
+                                <Save size={16} className="mr-2" />
+                                Save Voice Profile
+                              </span>
+                            )}
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </motion.div>
               )}
-            </div>
+            </AnimatePresence>
           </div>
 
-          {/* Logout Button */}
-          <div className="absolute bottom-0 left-0 w-80 p-6">
+          {/* Logout Button - Fixed */}
+          <div className="p-6 border-t border-purple-100 flex-shrink-0">
             <button
               onClick={handleLogout}
               className="w-full flex items-center justify-center space-x-2 bg-red-50 hover:bg-red-100
@@ -698,9 +726,9 @@ const ChatPage = () => {
         </div>
 
         {/* Main Chat Area */}
-        <div className="flex-1 flex flex-col">
+        <div className="flex-1 flex flex-col overflow-hidden">
           {/* Messages Area */}
-          <div className="flex-1 overflow-y-auto p-6 space-y-4">
+          <div className="flex-1 overflow-y-auto overflow-x-hidden p-6 space-y-4">
             <AnimatePresence>
               {messages.map((msg, index) => (
                 <motion.div
@@ -750,7 +778,7 @@ const ChatPage = () => {
           </div>
 
           {/* Input Area */}
-          <div className="p-6 bg-white/80 backdrop-blur-xl border-t border-purple-100">
+          <div className="p-6 bg-white/80 backdrop-blur-xl border-t border-purple-100 flex-shrink-0">
             <div className="flex items-center space-x-4">
               <div className="relative">
                 <button

@@ -3,8 +3,9 @@ import axios from "axios";
 import { useNavigate } from "react-router-dom";
 import EmojiPicker from "emoji-picker-react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Send, Mic, MicOff, LogOut, Smile, Brain, Trash2, Volume2, VolumeX, Save, Loader, UserRound, MessageCircle } from 'lucide-react';
+import { Send, Mic, MicOff, LogOut, Smile, Brain, Trash2, Volume2, VolumeX, Save, Loader, UserRound, MessageCircle, X, GripVertical } from 'lucide-react';
 import { Link } from "react-router-dom";
+import Draggable from 'react-draggable';
 
 // Import the ElevenLabs API functions
 import { uploadVoiceClone, textToSpeech } from "../utils/elevenlabs";
@@ -40,6 +41,15 @@ const ChatPage = () => {
 
   // Add new state for voice settings visibility
   const [showVoiceSettings, setShowVoiceSettings] = useState(false);
+  const [showFeedback, setShowFeedback] = useState(false);
+
+  // Add these state variables at the top with other state declarations
+  const [rating, setRating] = useState("");
+  const [reason, setReason] = useState("");
+  const [feedbackList, setFeedbackList] = useState([]);
+
+  // Add this line near your other state declarations
+  const dragRef = useRef(null);
 
   // Generate speech from text using ElevenLabs API
   const generateVoiceResponse = async (text) => {
@@ -111,6 +121,70 @@ const ChatPage = () => {
       }
     };
   }, [navigate]);
+
+  // Add this function with other function declarations
+  const submitFeedback = async () => {
+    if (!rating) {
+      alert("Please select a rating.");
+      return;
+    }
+
+    const token = localStorage.getItem("token");
+    if (!token) {
+      alert("You are not logged in. Redirecting to login.");
+      navigate("/login");
+      return;
+    }
+
+    const feedbackData = {
+      chat_id: messages.length > 0 ? messages[messages.length - 1]._id : "No_chat_id",
+      rating,
+      reason,
+    };
+  
+    console.log("Sending feedback data:", feedbackData); // Debugging
+
+    try {
+      const response = await axios.post(
+        `${import.meta.env.VITE_BACKEND_URL}/feedback`,
+        {
+          chat_id: messages.length > 0 ? messages[messages.length - 1]._id : null, // Use last message ID as chat ID
+          rating,
+          reason
+        },
+        {
+          headers: { Authorization: `Bearer ${token}` }
+        }
+      );
+
+      if (response.status === 201) {
+        alert("Feedback submitted successfully!");
+        setRating("");
+        setReason("");
+        fetchFeedback();
+      }
+    } catch (error) {
+      console.error("Error submitting feedback:", error.response?.data || error);
+      alert("Failed to submit feedback. Please try again.");
+    }
+  };
+
+  const fetchFeedback = async () => {
+    const token = localStorage.getItem("token");
+    if (!token) return;
+
+    try {
+      const response = await axios.get(
+        `${import.meta.env.VITE_BACKEND_URL}/all_feedback`,
+        {
+          headers: { Authorization: `Bearer ${token}` }
+        }
+      );
+      setFeedbackList(response.data);
+    } catch (error) {
+      console.error("Error fetching feedback:", error);
+    }
+  };
 
   // // Fetch user voice profile from server
   // const fetchVoiceProfile = async () => {
@@ -463,6 +537,10 @@ const ChatPage = () => {
   const startRecording = () => recognition && recognition.start();
   const stopRecording = () => recognition && recognition.stop();
 
+  // Add this useEffect with other useEffect hooks
+  useEffect(() => {
+    fetchFeedback();
+  }, []);
 
   return (
     <div className="relative h-screen bg-gradient-to-b from-purple-100 via-white to-purple-100 overflow-hidden">
@@ -472,6 +550,102 @@ const ChatPage = () => {
         <div className="absolute w-full h-full -right-48 -bottom-48 bg-pink-200/40 rounded-full blur-3xl animate-pulse" />
         <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI2MCIgaGVpZ2h0PSI2MCI+CiAgPHBhdGggZD0iTTAgMGg2MHY2MEgweiIgZmlsbD0ibm9uZSIvPgogIDxwYXRoIGQgPSJNMzAgMzBtLTIwIDBhMjAgMjAgMCAxIDAgNDAgMCAyMCAyMCAwIDEgMC00MCAwIiBzdHJva2U9InJnYmEoMTQ3LCA1MSwgMjM0LCAwLjEpIiBmaWxsPSJub25lIi8+Cjwvc3ZnPg==')] opacity-30" />
       </div>
+
+      {/* Feedback Toggle Button */}
+      <button
+        onClick={() => setShowFeedback(!showFeedback)}
+        className="fixed top-4 right-4 z-50 p-2 rounded-full bg-purple-600 text-white hover:bg-purple-700 transition-all shadow-lg"
+        title={showFeedback ? "Close Feedback" : "Open Feedback"}
+      >
+        {showFeedback ? <MessageCircle size={24} /> : <Smile size={24} />}
+      </button>
+
+      {/* Feedback Modal */}
+      <AnimatePresence>
+        {showFeedback && (
+          <Draggable
+            handle=".drag-handle"
+            bounds="body"
+            defaultPosition={{ x: 0, y: 0 }}
+            nodeRef={dragRef}
+          >
+            <motion.div
+              ref={dragRef}
+              initial={{ opacity: 0, y: -20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              className="fixed top-16 right-4 z-50 w-80 bg-white rounded-lg shadow-xl border border-purple-100"
+            >
+              {/* Drag Handle */}
+              <div className="drag-handle cursor-move p-2 border-b border-purple-100 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <GripVertical size={16} className="text-purple-400" />
+                  <h2 className="text-lg font-bold text-purple-900">Give Feedback</h2>
+                </div>
+                <button
+                  onClick={() => setShowFeedback(false)}
+                  className="text-purple-500 hover:text-purple-700"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+
+              <div className="p-4">
+                <div className="flex space-x-3 mb-3">
+                  <button
+                    onClick={() => setRating("👍")}
+                    className={`p-2 rounded transition-colors ${
+                      rating === "👍" ? "bg-green-500 text-white" : "bg-purple-50 hover:bg-purple-100"
+                    }`}
+                  >
+                    👍
+                  </button>
+                  <button
+                    onClick={() => setRating("👎")}
+                    className={`p-2 rounded transition-colors ${
+                      rating === "👎" ? "bg-red-500 text-white" : "bg-purple-50 hover:bg-purple-100"
+                    }`}
+                  >
+                    👎
+                  </button>
+                </div>
+                <textarea
+                  placeholder="Optional feedback..."
+                  value={reason}
+                  onChange={(e) => setReason(e.target.value)}
+                  className="w-full p-2 border border-purple-100 rounded focus:outline-none focus:ring-2 focus:ring-purple-200 mb-3"
+                ></textarea>
+
+                <button
+                  onClick={submitFeedback}
+                  className="w-full bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded transition-colors"
+                >
+                  Submit Feedback
+                </button>
+
+                <div className="mt-4 max-h-48 overflow-y-auto">
+                  <h3 className="text-sm font-bold text-purple-900 mb-2">Recent Feedback</h3>
+                  <div className="space-y-2">
+                    {feedbackList.slice(0, 3).map((feedback, index) => (
+                      <div key={index} className="p-2 border border-purple-100 rounded bg-purple-50">
+                        <div className="flex items-center gap-2">
+                          <span>{feedback.rating}</span>
+                          <span className="text-sm text-purple-600">
+                            {feedback.reason || "No reason provided"}
+                          </span>
+                        </div>
+                        <div className="text-xs text-purple-500 mt-1">
+                          {new Date(feedback.timestamp).toLocaleString()}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          </Draggable>
+        )}
+      </AnimatePresence>
 
       <div className="relative flex h-full overflow-hidden">
         {/* Sidebar */}
@@ -728,53 +902,58 @@ const ChatPage = () => {
         {/* Main Chat Area */}
         <div className="flex-1 flex flex-col overflow-hidden">
           {/* Messages Area */}
-          <div className="flex-1 overflow-y-auto overflow-x-hidden p-6 space-y-4">
-            <AnimatePresence>
-              {messages.map((msg, index) => (
-                <motion.div
-                  key={index}
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -10 }}
-                  transition={{ duration: 0.3 }}
-                  className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
-                >
-                  <div
-                    className={`max-w-full p-4 rounded-2xl backdrop-blur-lg ${
-                      msg.role === "user"
-                        ? "bg-purple-500 text-white"
-                        : "bg-white text-purple-900 border border-purple-100"
-                    }`}
+          <div className="flex-1 overflow-y-auto overflow-x-hidden p-6">
+            <div className="space-y-4">
+              {/* Existing Messages */}
+              <AnimatePresence>
+                {messages.map((msg, index) => (
+                  <motion.div
+                    key={index}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -10 }}
+                    transition={{ duration: 0.3 }}
+                    className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
                   >
-                    {msg.content}
-                    {msg.role === "bot" && preferences.outputMode === "voice" && (
-                      <button
-                        onClick={() => speakText(msg.content)}
-                        className="ml-2 p-1 text-purple-500 hover:text-purple-700 rounded-full hover:bg-purple-50"
-                        aria-label="Speak message"
-                      >
-                        <Volume2 size={14} />
-                      </button>
-                    )}
+                    <div
+                      className={`max-w-full p-4 rounded-2xl backdrop-blur-lg ${
+                        msg.role === "user"
+                          ? "bg-purple-500 text-white"
+                          : "bg-white text-purple-900 border border-purple-100"
+                      }`}
+                    >
+                      {msg.content}
+                      {msg.role === "bot" && preferences.outputMode === "voice" && (
+                        <button
+                          onClick={() => speakText(msg.content)}
+                          className="ml-2 p-1 text-purple-500 hover:text-purple-700 rounded-full hover:bg-purple-50"
+                          aria-label="Speak message"
+                        >
+                          <Volume2 size={14} />
+                        </button>
+                      )}
+                    </div>
+                  </motion.div>
+                ))}
+              </AnimatePresence>
+              
+              {/* Loading indicator */}
+              {isLoading && (
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  className="flex justify-start"
+                >
+                  <div className="bg-white text-purple-900 border border-purple-100 p-4 rounded-2xl">
+                    <div className="flex space-x-2">
+                      <div className="w-2 h-2 bg-purple-500 rounded-full animate-bounce" style={{ animationDelay: "0s" }} />
+                      <div className="w-2 h-2 bg-purple-500 rounded-full animate-bounce" style={{ animationDelay: "0.2s" }} />
+                      <div className="w-2 h-2 bg-purple-500 rounded-full animate-bounce" style={{ animationDelay: "0.4s" }} />
+                    </div>
                   </div>
                 </motion.div>
-              ))}
-            </AnimatePresence>
-            {isLoading && (
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                className="flex justify-start"
-              >
-                <div className="bg-white text-purple-900 border border-purple-100 p-4 rounded-2xl">
-                  <div className="flex space-x-2">
-                    <div className="w-2 h-2 bg-purple-500 rounded-full animate-bounce" style={{ animationDelay: "0s" }} />
-                    <div className="w-2 h-2 bg-purple-500 rounded-full animate-bounce" style={{ animationDelay: "0.2s" }} />
-                    <div className="w-2 h-2 bg-purple-500 rounded-full animate-bounce" style={{ animationDelay: "0.4s" }} />
-                  </div>
-                </div>
-              </motion.div>
-            )}
+              )}
+            </div>
           </div>
 
           {/* Input Area */}
@@ -858,5 +1037,4 @@ const ChatPage = () => {
     </div>
   );
 };
-
 export default ChatPage;

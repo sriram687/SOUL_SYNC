@@ -52,8 +52,9 @@ client = MongoClient(MONGO_URI)
 db = client["mental_health"]
 users_collection = db["users"]
 chat_collection = db["chat_history"]
+voice_profiles = db["voice_profiles"]
 user_preferences = db["user_preferences"]
-voice_profiles = db["voice_profiles"]  # New collection for storing voice profiles
+feedback_collection = db["feedback"]
 
 # Configure Google Gemini
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
@@ -64,6 +65,44 @@ model = genai.GenerativeModel('gemini-1.5-flash')
 ELEVENLABS_API_KEY = os.getenv("ELEVENLABS_API_KEY", "sk_47fc2867130eea668e25be615fcb078035d1017785533f12")
 DEFAULT_VOICE_ID = os.getenv("DEFAULT_VOICE_ID", "SLVLJ4RCTvobsWx1j1Ds")  # Default voice ID
 ELEVENLABS_API_URL = "https://api.elevenlabs.io/v1"
+
+
+
+@app.route('/feedback', methods=['POST'])
+def feedback():
+    try:
+        data = request.get_json()
+        print("Received feedback data:", data)
+        chat_id = data.get("chat_id", "No_chat_id")
+        rating = data.get("rating")  # Expecting "👍" or "👎"
+        reason = data.get("reason", "")
+        user_id = data.get("user_id", "anonymous")
+
+        feedback_data = {
+            "chat_id": chat_id,
+            "rating": rating,
+            "reason": reason,
+            "user_id": user_id,
+            "timestamp": datetime.now(timezone.UTC)
+        }
+
+        feedback_collection.insert_one(feedback_data)
+        return jsonify({"message": "Feedback recorded successfully"}), 201
+
+    except Exception as e:
+        print(f"Error in feedback endpoint: {str(e)}")
+        return jsonify({"error": str(e)}), 500
+
+# Retrieve All Feedback (GET)
+@app.route('/all_feedback', methods=['GET'])
+def get_all_feedback():
+    try:
+        feedback_list = list(feedback_collection.find({}, {"_id": 0}))  # Exclude MongoDB _id
+        return jsonify(feedback_list), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 
 # API Endpoint to fetch food details
 @app.route('/api/nutrition/get', methods=['GET'])
@@ -371,7 +410,7 @@ def get_user_preferences():
     if "_id" in user_prefs:
         user_prefs.pop("_id")
     
-    return jsonify(user_prefs)
+    return jsonify(user_prefs) 
 
 @app.route("/update_user_preferences", methods=["POST"])
 @jwt_required()

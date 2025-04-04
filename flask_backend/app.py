@@ -38,8 +38,6 @@ def get_access_token():
         return response.json().get("access_token")
     else:
         return None
-    
-    
 
 
 # Initialize bcrypt and JWT
@@ -55,6 +53,8 @@ chat_collection = db["chat_history"]
 voice_profiles = db["voice_profiles"]
 user_preferences = db["user_preferences"]
 feedback_collection = db["feedback"]
+conferences_collection = db["conferences"]
+messages_collection = db["messages"]
 
 # Configure Google Gemini
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
@@ -62,28 +62,40 @@ genai.configure(api_key=GEMINI_API_KEY)
 model = genai.GenerativeModel('gemini-1.5-flash')
 
 # ElevenLabs voice API configuration
-ELEVENLABS_API_KEY = os.getenv("ELEVENLABS_API_KEY", "sk_47fc2867130eea668e25be615fcb078035d1017785533f12")
+ELEVENLABS_API_KEY = os.getenv("ELEVENLABS_API_KEY", "sk_0e6a4b11b085079f89561266e6270d9816fb0c5e66a25570")
 DEFAULT_VOICE_ID = os.getenv("DEFAULT_VOICE_ID", "SLVLJ4RCTvobsWx1j1Ds")  # Default voice ID
 ELEVENLABS_API_URL = "https://api.elevenlabs.io/v1"
 
 
 
 @app.route('/feedback', methods=['POST'])
+@jwt_required()
 def feedback():
     try:
         data = request.get_json()
-        print("Received feedback data:", data)
-        chat_id = data.get("chat_id", "No_chat_id")
-        rating = data.get("rating")  # Expecting "👍" or "👎"
+        user_email = get_jwt_identity()
+        conference_id = data.get("conference_id")
+        rating = data.get("rating")  # "👍" or "👎"
         reason = data.get("reason", "")
-        user_id = data.get("user_id", "anonymous")
+        
+        if not conference_id:
+            return jsonify({"error": "Conference ID is required"}), 400
+        
+        # Verify conference belongs to user
+        conference = conferences_collection.find_one({
+            '_id': ObjectId(conference_id),
+            'user_email': user_email
+        })
+        
+        if not conference:
+            return jsonify({'error': 'Conference not found'}), 404
 
         feedback_data = {
-            "chat_id": chat_id,
+            "conference_id": conference_id,
+            "user_email": user_email,
             "rating": rating,
             "reason": reason,
-            "user_id": user_id,
-            "timestamp": datetime.now(timezone.UTC)
+            "timestamp": datetime.now(timezone.utc)
         }
 
         feedback_collection.insert_one(feedback_data)
@@ -93,14 +105,26 @@ def feedback():
         print(f"Error in feedback endpoint: {str(e)}")
         return jsonify({"error": str(e)}), 500
 
-# Retrieve All Feedback (GET)
-@app.route('/all_feedback', methods=['GET'])
-def get_all_feedback():
-    try:
-        feedback_list = list(feedback_collection.find({}, {"_id": 0}))  # Exclude MongoDB _id
-        return jsonify(feedback_list), 200
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+@app.route('/get_feedback/<conference_id>', methods=['GET'])
+@jwt_required()
+def get_feedback(conference_id):
+    user_email = get_jwt_identity()
+    
+    # Verify conference belongs to user
+    conference = conferences_collection.find_one({
+        '_id': ObjectId(conference_id),
+        'user_email': user_email
+    })
+    
+    if not conference:
+        return jsonify({'error': 'Conference not found'}), 404
+    
+    feedback_list = list(feedback_collection.find(
+        {"conference_id": conference_id},
+        {"_id": 0, "rating": 1, "reason": 1, "timestamp": 1}
+    ).sort("timestamp", -1))
+    
+    return jsonify(feedback_list), 200
 
 
 
@@ -137,10 +161,20 @@ def gemini_chat():
         user_input = data.get("message", "")
         output_mode = data.get("outputMode", "text")
         use_user_voice = data.get("useUserVoice", False)
+        conference_id = data.get("conference_id")
         user_email = get_jwt_identity()
 
-        if not user_input:
-            return jsonify({"error": "Empty message received"}), 400
+        if not user_input or not conference_id:
+            return jsonify({"error": "Message and conference_id are required"}), 400
+
+        # Verify conference belongs to user
+        conference = conferences_collection.find_one({
+            '_id': ObjectId(conference_id),
+            'user_email': user_email
+        })
+        
+        if not conference:
+            return jsonify({"error": "Conference not found"}), 404
 
         # Store user preference in database
         user_preferences.update_one(
@@ -205,7 +239,8 @@ def gemini_chat():
         return jsonify({
             "response": short_response,
             "outputMode": output_mode,
-            "audioUrl": audio_url
+            "audioUrl": audio_url,
+            "conference_id": conference_id
         })
 
     except Exception as e:
@@ -488,6 +523,7 @@ def login():
 def logout():
     return jsonify({"message": "Logged out successfully"}), 200
 
+
 @app.route('/store_message', methods=['POST'])
 @jwt_required()
 def store_message():
@@ -499,30 +535,66 @@ def store_message():
     if not message or not role:
         return jsonify({"message": "Invalid data"}), 400
     
-    result = chat_collection.insert_one({
+    # Get active conference for user
+    active_conference = conferences_collection.find_one({
+        'user_email': user_email,
+        'is_active': True
+    })
+    
+    if not active_conference:
+        # Create a default conference if none exists
+        conference = {
+            'user_email': user_email,
+            'topic': 'General Conversation',
+            'created_at': datetime.now(timezone.utc),
+            'updated_at': datetime.now(timezone.utc),
+            'is_active': True
+        }
+        result = conferences_collection.insert_one(conference)
+        conference_id = str(result.inserted_id)
+    else:
+        conference_id = str(active_conference['_id'])
+    
+    result = messages_collection.insert_one({
         "email": user_email,
+        "conference_id": conference_id,
         "content": message,
         "role": role,
         "timestamp": datetime.now(timezone.utc)
     })
     
-    # Return the inserted ID so the frontend can use it for deletion
+    # Update conference updated_at
+    conferences_collection.update_one(
+        {'_id': ObjectId(conference_id)},
+        {'$set': {'updated_at': datetime.now(timezone.utc)}}
+    )
+    
     return jsonify({
         "message": "Message stored successfully",
-        "message_id": str(result.inserted_id)
+        "message_id": str(result.inserted_id),
+        "conference_id": conference_id
     }), 201
 
-@app.route('/get_chat_history', methods=['GET'])
+@app.route('/get_chat_history/<conference_id>', methods=['GET'])
 @jwt_required()
-def get_chat_history():
+def get_chat_history(conference_id):
     user_email = get_jwt_identity()
-    # Get chat history sorted by timestamp
-    history = list(chat_collection.find(
-        {"email": user_email},
+    
+    # Verify conference belongs to user
+    conference = conferences_collection.find_one({
+        '_id': ObjectId(conference_id),
+        'user_email': user_email
+    })
+    
+    if not conference:
+        return jsonify({'error': 'Conference not found'}), 404
+    
+    # Get chat history for this conference
+    history = list(messages_collection.find(
+        {"email": user_email, "conference_id": conference_id},
         {"_id": 1, "content": 1, "role": 1, "timestamp": 1} 
     ).sort("timestamp", 1))
 
-    # Convert ObjectId to string for JSON serialization
     for message in history:
         message["_id"] = str(message["_id"])
     
@@ -534,24 +606,38 @@ def delete_message():
     try:
         data = request.json
         message_id = data.get("message_id")
+        conference_id = data.get("conference_id")
         user_email = get_jwt_identity()
 
-        if not message_id:
-            return jsonify({"error": "Message ID is required"}), 400
+        if not message_id or not conference_id:
+            return jsonify({"error": "Message ID and Conference ID are required"}), 400
 
         # Validate ObjectId format before attempting to delete
-        if not ObjectId.is_valid(message_id):
-            return jsonify({"error": "Invalid message ID format"}), 400
+        if not ObjectId.is_valid(message_id) or not ObjectId.is_valid(conference_id):
+            return jsonify({"error": "Invalid ID format"}), 400
+
+        # Verify conference belongs to user
+        conference = conferences_collection.find_one({
+            '_id': ObjectId(conference_id),
+            'user_email': user_email
+        })
+        
+        if not conference:
+            return jsonify({"error": "Conference not found"}), 404
 
         # Try to delete the message
-        result = chat_collection.delete_one({
+        result = messages_collection.delete_one({
             "_id": ObjectId(message_id),
-            "email": user_email
+            "email": user_email,
+            "conference_id": conference_id
         })
 
         if result.deleted_count == 0:
-            # Check if message exists but belongs to another user
-            message_exists = chat_collection.find_one({"_id": ObjectId(message_id)})
+            # Check if message exists but belongs to another user/conference
+            message_exists = messages_collection.find_one({
+                "_id": ObjectId(message_id),
+                "conference_id": conference_id
+            })
             if message_exists:
                 return jsonify({"error": "Unauthorized to delete this message"}), 403
             else:
@@ -572,6 +658,92 @@ def health_check():
         "status": "healthy",
         "message": "API is running"
     }), 200
+
+
+
+@app.route('/create_conference', methods=['POST'])
+@jwt_required()
+def create_conference():
+    user_email = get_jwt_identity()
+    data = request.get_json()
+    topic = data.get('topic', 'New Conversation')
+    
+    conference = {
+        'user_email': user_email,
+        'topic': topic,
+        'created_at': datetime.now(timezone.utc),
+        'updated_at': datetime.now(timezone.utc),
+        'is_active': True
+    }
+    
+    result = conferences_collection.insert_one(conference)
+    conference_id = str(result.inserted_id)
+    
+    # Set all other conferences as inactive
+    conferences_collection.update_many(
+        {'user_email': user_email, '_id': {'$ne': result.inserted_id}},
+        {'$set': {'is_active': False}}
+    )
+    
+    return jsonify({
+        'message': 'Conference created successfully',
+        'conference_id': conference_id
+    }), 201
+
+@app.route('/get_conferences', methods=['GET'])
+@jwt_required()
+def get_conferences():
+    user_email = get_jwt_identity()
+    
+    conferences = list(conferences_collection.find(
+        {'user_email': user_email},
+        {'_id': 1, 'topic': 1, 'created_at': 1, 'updated_at': 1, 'is_active': 1}
+    ).sort('updated_at', -1))
+    
+    for conf in conferences:
+        conf['_id'] = str(conf['_id'])
+        conf['message_count'] = messages_collection.count_documents({
+            'conference_id': conf['_id']
+        })
+    
+    return jsonify(conferences), 200
+
+
+
+
+
+@app.route('/switch_conference/<conference_id>', methods=['POST'])
+@jwt_required()
+def switch_conference(conference_id):
+    try:
+        user_email = get_jwt_identity()
+        
+        # Validate conference belongs to user
+        conference = conferences_collection.find_one({
+            '_id': ObjectId(conference_id),
+            'user_email': user_email
+        })
+        
+        if not conference:
+            return jsonify({'error': 'Conference not found'}), 404
+        
+        # Set all conferences as inactive
+        conferences_collection.update_many(
+            {'user_email': user_email},
+            {'$set': {'is_active': False}}
+        )
+        
+        # Set selected conference as active
+        conferences_collection.update_one(
+            {'_id': ObjectId(conference_id)},
+            {'$set': {'is_active': True, 'updated_at': datetime.now(timezone.utc)}}
+        )
+        
+        return jsonify({'message': 'Conference switched successfully'}), 200
+    except Exception as e:
+        print(f"Error switching conference: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
 
 if __name__ == '__main__':
     app.run(debug=True)

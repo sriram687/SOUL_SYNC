@@ -41,7 +41,7 @@ const ChatPage = () => {
   });
 
   // Add new state for voice settings visibility
-  const [showVoiceSettings, setShowVoiceSettings] = useState(false);
+  
   const [showFeedback, setShowFeedback] = useState(false);
 
   // Add these state variables at the top with other state declarations

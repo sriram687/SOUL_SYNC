@@ -1,246 +1,376 @@
 import React, { useState, useEffect } from 'react';
-import { format } from 'date-fns';
+import { motion } from 'framer-motion';
+import { Loader2, Utensils, FileText, Brain } from 'lucide-react';
+import axios from 'axios';
+import { Link } from "react-router-dom";
 
-const MenstrualCycleTracker = () => {
-  const [periodStart, setPeriodStart] = useState(1);
-  const [periodEnd, setPeriodEnd] = useState(5);
-  const [cycleData, setCycleData] = useState(Array(30).fill(0));
-  const [currentDay] = useState(new Date().getDate());
-  const [currentMonth] = useState(format(new Date(), 'MMMM'));
-  
-  // Create cycle data based on user input
-  useEffect(() => {
-    const newCycleData = Array(30).fill(0);
-    for (let i = periodStart - 1; i < periodEnd; i++) {
-      if (i >= 0 && i < 30) {
-        newCycleData[i] = 1;
-      }
-    }
-    setCycleData(newCycleData);
-  }, [periodStart, periodEnd]);
+const Nutrition = () => {
+  // Personal Metrics State
+  const [bodyMetrics, setBodyMetrics] = useState({
+    weight: '',
+    height: '',
+    age: '',
+    gender: '',
+    activityLevel: 'moderate',
+  });
 
-  // Handle form submission
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    // Form already updates state on change, so no additional action needed here
-  };
+  // Nutrition Search State
+  const [foodQuery, setFoodQuery] = useState('');
+  const [foodResults, setFoodResults] = useState([]);
+  const [suggestions, setSuggestions] = useState([]);
+  const [selectedFood, setSelectedFood] = useState(null);
+  const [diaryEntries, setDiaryEntries] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [nutrients, setNutrients] = useState([]);
 
-  // Get day of week for a particular day
-  const getDayOfWeek = (day) => {
-    const dayIndex = (day + 3) % 7; // Simple formula for weekday (starting on 1st)
-    return ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'][dayIndex];
-  };
-
-  // Render calendar grid
-  const renderCalendar = () => {
-    const rows = 5;
-    const cols = 6;
-    const calendar = [];
-
-    for (let row = 0; row < rows; row++) {
-      const rowCells = [];
-      for (let col = 0; col < cols; col++) {
-        const dayIndex = row * cols + col;
-        if (dayIndex < 30) {
-          const isPeriodDay = cycleData[dayIndex] === 1;
-          const isCurrentDay = dayIndex + 1 === currentDay;
-          
-          const cellStyle = {
-            backgroundColor: isPeriodDay ? '#ffcccb' : isCurrentDay ? '#8fbc8f' : '#d3d3d3',
-            width: '100%',
-            height: '100%',
-            display: 'flex',
-            flexDirection: 'column',
-            justifyContent: 'center',
-            alignItems: 'center',
-            borderRadius: '8px',
-            padding: '10px',
-            position: 'relative',
-            boxSizing: 'border-box'
-          };
-          
-          rowCells.push(
-            <div key={`cell-${row}-${col}`} className="grid-cell" style={{ padding: '5px' }}>
-              <div style={cellStyle}>
-                <div style={{ fontWeight: 'bold', fontSize: '18px' }}>{dayIndex + 1}</div>
-                <div style={{ fontSize: '10px', textAlign: 'center' }}>
-                  {currentMonth.slice(0, 3)} {dayIndex + 1}
-                  <br />
-                  ({getDayOfWeek(dayIndex)})
-                </div>
-              </div>
-            </div>
-          );
-        }
-      }
-      
-      calendar.push(
-        <div key={`row-${row}`} style={{ display: 'flex', width: '100%' }}>
-          {rowCells}
-        </div>
-      );
-    }
+  // Safe nutrition value extraction
+  const extractNutritionValue = (food, nutrientId) => {
+    if (!food.foodNutrients) return 'N/A';
     
-    return calendar;
+    const nutrient = food.foodNutrients.find(n => n.nutrientId === nutrientId);
+    return nutrient ? `${nutrient.value} ${nutrient.unitName.toLowerCase()}` : 'N/A';
   };
-  
-  return (
-    <div style={{ 
-      maxWidth: '1000px', 
-      margin: '0 auto', 
-      padding: '20px', 
-      fontFamily: 'Arial, sans-serif',
-      backgroundColor: '#f4f4f9'
-    }}>
-      <div style={{ 
-        textAlign: 'center', 
-        marginBottom: '30px' 
-      }}>
-        <h1 style={{ 
-          color: '#6a5acd', 
-          marginBottom: '10px' 
-        }}>
-          Menstrual Cycle Tracker (Calendar View)
-        </h1>
-        <p>Track your menstrual cycle with this calendar visualization</p>
-      </div>
+
+  // Food Search
+  const searchFood = async () => {
+    if (!foodQuery.trim()) {
+      setError('Please enter a food name');
+      return;
+    }
+
+    setLoading(true);
+    setError('');
+
+    try {
+      const response = await axios.get(
+        `${import.meta.env.VITE_BACKEND_URL}/api/nutrition/search`,
+        { params: { query: foodQuery } }
+      );
       
-      <div style={{
-        display: 'flex',
-        flexDirection: 'row',
-        gap: '30px',
-        flexWrap: 'wrap'
-      }}>
-        {/* Input Section */}
-        <div style={{
-          flex: '1',
-          minWidth: '300px',
-          backgroundColor: 'white',
-          padding: '20px',
-          borderRadius: '10px',
-          boxShadow: '0 4px 8px rgba(0,0,0,0.1)'
-        }}>
-          <h2 style={{ marginBottom: '20px', color: '#6a5acd' }}>Enter Cycle Information</h2>
-          <form onSubmit={handleSubmit}>
-            <div style={{ marginBottom: '15px' }}>
-              <label htmlFor="periodStart" style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>
-                First day of your period (1-30):
-              </label>
-              <input
-                type="number"
-                id="periodStart"
-                min="1"
-                max="30"
-                value={periodStart}
-                onChange={(e) => setPeriodStart(parseInt(e.target.value))}
-                style={{
-                  width: '100%',
-                  padding: '10px',
-                  borderRadius: '5px',
-                  border: '1px solid #ddd'
-                }}
-                required
-              />
-            </div>
-            
-            <div style={{ marginBottom: '20px' }}>
-              <label htmlFor="periodEnd" style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>
-                Last day of your period (1-30):
-              </label>
-              <input
-                type="number"
-                id="periodEnd"
-                min="1"
-                max="30"
-                value={periodEnd}
-                onChange={(e) => setPeriodEnd(parseInt(e.target.value))}
-                style={{
-                  width: '100%',
-                  padding: '10px',
-                  borderRadius: '5px',
-                  border: '1px solid #ddd'
-                }}
-                required
-              />
-            </div>
-            
-            <button 
-              type="submit" 
-              style={{
-                backgroundColor: '#6a5acd',
-                color: 'white',
-                padding: '10px 20px',
-                border: 'none',
-                borderRadius: '5px',
-                cursor: 'pointer',
-                fontSize: '16px'
-              }}
-            >
-              Update Calendar
-            </button>
-          </form>
-          
-          <div style={{ marginTop: '30px' }}>
-            <h3 style={{ marginBottom: '15px', color: '#6a5acd' }}>Legend</h3>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <div style={{ width: '20px', height: '20px', backgroundColor: '#ffcccb', borderRadius: '4px' }}></div>
-                <span>Period Days</span>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <div style={{ width: '20px', height: '20px', backgroundColor: '#8fbc8f', borderRadius: '4px' }}></div>
-                <span>Current Day</span>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <div style={{ width: '20px', height: '20px', backgroundColor: '#d3d3d3', borderRadius: '4px' }}></div>
-                <span>Regular Days</span>
-              </div>
-            </div>
-          </div>
+      setFoodResults(response.data.foods || []);
+    } catch (err) {
+      setError('Failed to fetch food data');
+      console.error('Search error:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Autocomplete
+  const fetchSuggestions = async (query) => {
+    if (query.length < 2) {
+      setSuggestions([]);
+      return;
+    }
+
+    try {
+      const response = await axios.get(
+        `${import.meta.env.VITE_BACKEND_URL}/api/nutrition/autocomplete`,
+        { params: { query } }
+      );
+      setSuggestions(response.data.suggestions || []);
+    } catch (err) {
+      console.error("Autocomplete error:", err);
+    }
+  };
+
+  // Get Food Details
+  const getFoodDetails = async (fdcId) => {
+    setLoading(true);
+    try {
+      const response = await axios.get(
+        `${import.meta.env.VITE_BACKEND_URL}/api/nutrition/get`,
+        { params: { fdc_id: fdcId } }
+      );
+      
+      setSelectedFood(response.data);
+      
+      // Extract and format nutrients for display
+      if (response.data.foodNutrients) {
+        const importantNutrients = response.data.foodNutrients.filter(n => 
+          [1008, 1003, 1004, 1005].includes(n.nutrientId)
+        );
+        setNutrients(importantNutrients);
+      }
+    } catch (err) {
+      setError('Failed to fetch food details');
+      console.error('Food details error:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Add to Diary
+  const addToDiary = (food, mealType) => {
+    if (!food) return;
+
+    const foodName = food.description || 'Unknown Food';
+    setDiaryEntries(prev => [
+      ...prev,
+      {
+        id: Date.now(),
+        food: { 
+          name: foodName,
+          calories: extractNutritionValue(food, 1008), // Energy
+          protein: extractNutritionValue(food, 1003), // Protein
+          carbs: extractNutritionValue(food, 1005),   // Carbohydrate
+          fat: extractNutritionValue(food, 1004)      // Fat
+        },
+        mealType,
+        date: new Date().toISOString()
+      }
+    ]);
+  };
+
+  // Common nutrients IDs (USDA standard)
+  const nutrientMap = {
+    1008: { name: 'Calories', unit: 'kcal' },
+    1003: { name: 'Protein', unit: 'g' },
+    1004: { name: 'Fat', unit: 'g' },
+    1005: { name: 'Carbohydrate', unit: 'g' },
+    1093: { name: 'Sodium', unit: 'mg' },
+    1087: { name: 'Calcium', unit: 'mg' },
+    1089: { name: 'Iron', unit: 'mg' },
+    1106: { name: 'Vitamin D', unit: 'IU' }
+  };
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-yellow-300 via-emerald-400 to-yellow-500">
+      <header className="fixed top-0 w-full z-50 flex justify-between items-center p-5 bg-green-600 backdrop-blur-md">
+        <div className="flex items-center gap-3">
+          <Link to="/" className="flex items-center gap-2 cursor-pointer">
+            <Brain className="w-10 h-10 text-white" />
+            <h1 className="text-2xl font-bold">Soul Sync</h1>
+          </Link>
         </div>
-        
-        {/* Calendar Section */}
-        <div style={{
-          flex: '2',
-          minWidth: '500px',
-          backgroundColor: 'white',
-          padding: '20px',
-          borderRadius: '10px',
-          boxShadow: '0 4px 8px rgba(0,0,0,0.1)'
-        }}>
-          <div style={{ 
-            display: 'flex', 
-            justifyContent: 'space-between', 
-            alignItems: 'center',
-            marginBottom: '20px'
-          }}>
-            <h2 style={{ color: '#6a5acd' }}>Calendar View</h2>
-            <div>Current Month: {currentMonth}</div>
-          </div>
-          
-          <div style={{ 
-            display: 'grid',
-            gridTemplateColumns: 'repeat(7, 1fr)',
-            gap: '5px',
-            marginBottom: '10px'
-          }}>
-            {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(day => (
-              <div key={day} style={{ 
-                textAlign: 'center', 
-                fontWeight: 'bold',
-                color: '#6a5acd'
-              }}>
-                {day}
+      </header>
+      
+      <div className="min-h-screen mt-20 bg-yellow-green-50 p-6">
+        <div className="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-6">
+          {/* Left Column - Personal Metrics */}
+          <div className="md:col-span-1 space-y-6">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="bg-white rounded-xl p-6 shadow-lg"
+            >
+              <h2 className="text-xl font-bold text-green-800 mb-4">Personal Metrics</h2>
+              <div className="space-y-4">
+                <input
+                  type="number"
+                  placeholder="Weight (kg)"
+                  className="w-full p-3 border border-green-200 rounded-lg"
+                  value={bodyMetrics.weight}
+                  onChange={(e) => setBodyMetrics({...bodyMetrics, weight: e.target.value})}
+                />
+                <input
+                  type="number"
+                  placeholder="Height (cm)"
+                  className="w-full p-3 border border-green-200 rounded-lg"
+                  value={bodyMetrics.height}
+                  onChange={(e) => setBodyMetrics({...bodyMetrics, height: e.target.value})}
+                />
+                <select
+                  className="w-full p-3 border border-green-200 rounded-lg"
+                  value={bodyMetrics.activityLevel}
+                  onChange={(e) => setBodyMetrics({...bodyMetrics, activityLevel: e.target.value})}
+                >
+                  <option value="sedentary">Sedentary</option>
+                  <option value="moderate">Moderate</option>
+                  <option value="active">Active</option>
+                </select>
               </div>
-            ))}
+            </motion.div>
+
+            {/* Food Diary */}
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.1 }}
+              className="bg-white rounded-xl p-6 shadow-lg"
+            >
+              <h2 className="text-xl font-bold text-green-800 mb-4">Food Diary</h2>
+              {diaryEntries.length > 0 ? (
+                <div className="space-y-2">
+                  {diaryEntries.map(entry => (
+                    <div key={entry.id} className="p-3 bg-green-50 rounded-lg">
+                      <p className="font-medium">{entry.food.name}</p>
+                      <p className="text-sm text-gray-600">
+                        {entry.mealType} • {new Date(entry.date).toLocaleTimeString()}
+                      </p>
+                      <div className="text-xs text-gray-500 mt-1">
+                        {entry.food.calories} | 
+                        P: {entry.food.protein} | 
+                        C: {entry.food.carbs} | 
+                        F: {entry.food.fat}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-gray-500">No entries yet</p>
+              )}
+            </motion.div>
           </div>
-          
-          <div style={{
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '10px'
-          }}>
-            {renderCalendar()}
+
+          {/* Middle Column - Food Search */}
+          <div className="md:col-span-1 space-y-6">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.2 }}
+              className="bg-white rounded-xl p-6 shadow-lg"
+            >
+              <div className="flex items-center gap-2 mb-4">
+                <Utensils className="text-green-600" />
+                <h2 className="text-xl font-bold text-green-800">Food Search</h2>
+              </div>
+
+              <div className="relative">
+                <input
+                  type="text"
+                  placeholder="Search for food..."
+                  className="w-full p-3 border border-green-200 rounded-lg"
+                  value={foodQuery}
+                  onChange={(e) => {
+                    setFoodQuery(e.target.value);
+                    fetchSuggestions(e.target.value);
+                  }}
+                />
+                {suggestions.length > 0 && (
+                  <ul className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg">
+                    {suggestions.map((item, index) => (
+                      <li 
+                        key={index}
+                        className="p-2 hover:bg-green-50 cursor-pointer"
+                        onClick={() => {
+                          setFoodQuery(item);
+                          setSuggestions([]);
+                        }}
+                      >
+                        {item}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+
+              <button
+                onClick={searchFood}
+                disabled={loading}
+                className="mt-3 w-full bg-green-600 text-white p-3 rounded-lg hover:bg-green-700 transition flex justify-center items-center"
+              >
+                {loading ? <Loader2 className="animate-spin" /> : "Search"}
+              </button>
+
+              {error && <p className="mt-2 text-red-500">{error}</p>}
+
+              {/* Search Results */}
+              <div className="mt-4 space-y-2 max-h-96 overflow-y-auto">
+                {foodResults.map(food => (
+                  <div 
+                    key={food.fdcId}
+                    className="p-3 border-b border-green-100 hover:bg-green-50 cursor-pointer"
+                    onClick={() => getFoodDetails(food.fdcId)}
+                  >
+                    <p className="font-medium">{food.description || food.brandOwner || 'Unknown Food'}</p>
+                    <p className="text-sm text-gray-600">{food.dataType || 'Generic'}</p>
+                  </div>
+                ))}
+              </div>
+            </motion.div>
+          </div>
+
+          {/* Right Column - Food Details */}
+          <div className="md:col-span-1 space-y-6">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.3 }}
+              className="bg-white rounded-xl p-6 shadow-lg"
+            >
+              <div className="flex items-center gap-2 mb-4">
+                <FileText className="text-green-600" />
+                <h2 className="text-xl font-bold text-green-800">Nutrition Details</h2>
+              </div>
+
+              {selectedFood ? (
+                <div>
+                  <h3 className="text-lg font-semibold">{selectedFood.description || 'Food Details'}</h3>
+                  {selectedFood.brandOwner && (
+                    <p className="text-sm text-gray-600 mb-3">{selectedFood.brandOwner}</p>
+                  )}
+                  
+                  <div className="grid grid-cols-2 gap-3 mt-4">
+                    <div className="bg-green-50 p-3 rounded-lg">
+                      <p className="text-sm text-green-700">Calories</p>
+                      <p className="font-bold">
+                        {extractNutritionValue(selectedFood, 1008)}
+                      </p>
+                    </div>
+                    <div className="bg-green-50 p-3 rounded-lg">
+                      <p className="text-sm text-green-700">Protein</p>
+                      <p className="font-bold">
+                        {extractNutritionValue(selectedFood, 1003)}
+                      </p>
+                    </div>
+                    <div className="bg-green-50 p-3 rounded-lg">
+                      <p className="text-sm text-green-700">Carbs</p>
+                      <p className="font-bold">
+                        {extractNutritionValue(selectedFood, 1005)}
+                      </p>
+                    </div>
+                    <div className="bg-green-50 p-3 rounded-lg">
+                      <p className="text-sm text-green-700">Fat</p>
+                      <p className="font-bold">
+                        {extractNutritionValue(selectedFood, 1004)}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Additional Nutrients */}
+                  <div className="mt-4">
+                    <h4 className="font-medium text-green-800 mb-2">Additional Nutrients</h4>
+                    <div className="space-y-2">
+                      {nutrients.filter(n => ![1008, 1003, 1004, 1005].includes(n.nutrientId)).map(nutrient => (
+                        <div key={nutrient.nutrientId} className="flex justify-between">
+                          <span className="text-sm text-gray-700">
+                            {nutrientMap[nutrient.nutrientId]?.name || `Nutrient ${nutrient.nutrientId}`}
+                          </span>
+                          <span className="text-sm font-medium">
+                            {nutrient.value} {nutrient.unitName.toLowerCase()}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="mt-4 space-x-2">
+                    <button 
+                      onClick={() => addToDiary(selectedFood, 'Breakfast')}
+                      className="px-4 py-2 bg-green-100 text-green-800 rounded-lg text-sm"
+                    >
+                      Breakfast
+                    </button>
+                    <button 
+                      onClick={() => addToDiary(selectedFood, 'Lunch')}
+                      className="px-4 py-2 bg-green-100 text-green-800 rounded-lg text-sm"
+                    >
+                      Lunch
+                    </button>
+                    <button 
+                      onClick={() => addToDiary(selectedFood, 'Dinner')}
+                      className="px-4 py-2 bg-green-100 text-green-800 rounded-lg text-sm"
+                    >
+                      Dinner
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <p className="text-gray-500">Select a food to view details</p>
+              )}
+            </motion.div>
           </div>
         </div>
       </div>
@@ -248,4 +378,4 @@ const MenstrualCycleTracker = () => {
   );
 };
 
-export default MenstrualCycleTracker;
+export default Nutrition;

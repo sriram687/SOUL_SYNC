@@ -13,12 +13,14 @@ from io import BytesIO
 import uuid
 import tempfile
 
+
 # Load environment variables
 load_dotenv()
-
 app = Flask(__name__)
 app.config['JWT_SECRET_KEY'] = os.getenv('JWT_SECRET_KEY', 'default-secret-key')
 CORS(app)
+USDA_API_KEY = os.getenv('USDA_API_KEY')
+BASE_URL = "https://api.nal.usda.gov/fdc/v1"
 CLIENT_ID = os.getenv("CLIENT_ID")
 CLIENT_SECRET = os.getenv("CLIENT_SECRET")
 TOKEN_URL = "https://oauth.fatsecret.com/connect/token"
@@ -126,31 +128,99 @@ def get_feedback(conference_id):
     
     return jsonify(feedback_list), 200
 
-
-
-# API Endpoint to fetch food details
+#API endpoint to get food details
 @app.route('/api/nutrition/get', methods=['GET'])
-def get_food():
-    try:
-        food_id = request.args.get('food_id')
-        token = get_access_token()
-        
-        params = {
-            'method': 'food.get',
-            'food_id': food_id,
-            'format': 'json'
-        }
-        
-        headers = {
-            'Authorization': f'Bearer {token}'
-        }
-        
-        API_BASE_URL = "https://platform.fatsecret.com/rest/server.api"
-        response = requests.get(API_BASE_URL, params=params, headers=headers)
-        return jsonify(response.json())
+def get_food_details():
+    fdc_id = request.args.get('fdc_id')
+    if not fdc_id:
+        return jsonify({"error": "fdc_id parameter is required"}), 400
     
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+    try:
+        # Get food details - request FULL format and specific nutrients
+        details_url = f"{BASE_URL}/food/{fdc_id}"
+        params = {
+            'api_key': USDA_API_KEY,
+            'format': 'full',  # Changed from 'abridged' to 'full'
+            'nutrients': [1008, 1003, 1004, 1005, 1093, 1087, 1089, 1106]  # Common nutrients
+        }
+        
+        response = requests.get(details_url, params=params)
+        response.raise_for_status()
+        
+        food_data = response.json()
+        
+        # Extract nutrients from different possible locations in the response
+        food_nutrients = []
+        
+        # Try different locations where nutrients might be stored
+        if 'foodNutrients' in food_data:
+            food_nutrients = food_data['foodNutrients']
+        elif 'inputFoods' in food_data and len(food_data['inputFoods']) > 0:
+            if 'foodNutrients' in food_data['inputFoods'][0]:
+                food_nutrients = food_data['inputFoods'][0]['foodNutrients']
+        
+        # Simplify the nutrient data
+        processed_nutrients = []
+        for nutrient in food_nutrients:
+            processed_nutrients.append({
+                'nutrientId': nutrient.get('nutrient', {}).get('id') or nutrient.get('nutrientId'),
+                'nutrientName': nutrient.get('nutrient', {}).get('name') or nutrient.get('nutrientName'),
+                'value': nutrient.get('amount') or nutrient.get('value'),
+                'unitName': nutrient.get('nutrient', {}).get('unitName') or nutrient.get('unitName')
+            })
+        
+        # Simplify the response
+        simplified_data = {
+            'fdcId': food_data.get('fdcId'),
+            'description': food_data.get('description', ''),
+            'brandOwner': food_data.get('brandOwner', ''),
+            'dataType': food_data.get('dataType', ''),
+            'foodNutrients': processed_nutrients
+        }
+        
+        return jsonify(simplified_data)
+    
+    except requests.exceptions.RequestException as e:
+        return jsonify({"error": str(e)}), 500
+
+
+
+# API Endpoint to food search details
+@app.route('/api/nutrition/search', methods=['GET'])
+def search_food():
+    query = request.args.get('query')
+    if not query:
+        return jsonify({"error": "Query parameter is required"}), 400
+    
+    try:
+        # Search for foods
+        search_url = f"{BASE_URL}/foods/search"
+        params = {
+            'api_key': USDA_API_KEY,
+            'query': query,
+            'pageSize': 10,
+            'dataType': ["Survey (FNDDS)", "Branded"]
+        }
+        
+        response = requests.get(search_url, params=params)
+        response.raise_for_status()
+        
+        foods = response.json().get('foods', [])
+        simplified_foods = []
+        
+        for food in foods:
+            simplified_foods.append({
+                'fdcId': food['fdcId'],
+                'description': food.get('description', ''),
+                'dataType': food.get('dataType', ''),
+                'brandOwner': food.get('brandOwner', ''),
+                'score': food.get('score', 0)
+            })
+        
+        return jsonify({"foods": simplified_foods})
+    
+    except requests.exceptions.RequestException as e:
+        return jsonify({"error": str(e)}), 500
 
 
 @app.route("/gemini_chat", methods=["POST"])
@@ -277,54 +347,32 @@ def generate_speech_with_elevenlabs(text, voice_id):
 
 
 
-@app.route('/api/nutrition/search', methods=['GET'])
-def search_food():
-    try:
-        query = request.args.get('query')
-        token = get_access_token()
-        
-        params = {
-            'method': 'foods.search',
-            'search_expression': query,
-            'format': 'json'
-        }
-        
-        headers = {
-            'Authorization': f'Bearer {token}'
-        }
-        
-        API_BASE_URL = "https://platform.fatsecret.com/rest/server.api"
-        response = requests.get(API_BASE_URL, params=params, headers=headers)
-        return jsonify(response.json())
-    
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
-
 
 
 @app.route('/api/nutrition/autocomplete', methods=['GET'])
 def autocomplete_food():
-    try:
-        query = request.args.get('query')
-        token = get_access_token()
-        
-        params = {
-            'method': 'foods.autocomplete',
-            'expression': query,
-            'format': 'json'
-        }
-        
-        headers = {
-            'Authorization': f'Bearer {token}'
-        }
-        
-        API_BASE_URL = "https://platform.fatsecret.com/rest/server.api"
-        response = requests.get(API_BASE_URL, params=params, headers=headers)
-        return jsonify(response.json())
+    query = request.args.get('query')
+    if not query or len(query) < 2:
+        return jsonify({"suggestions": []})
     
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+    try:
+        # Autocomplete endpoint
+        autocomplete_url = f"{BASE_URL}/foods/search/suggest"
+        params = {
+            'api_key': USDA_API_KEY,
+            'query': query,
+            'dataType': ["Survey (FNDDS)", "Branded"]
+        }
+        
+        response = requests.get(autocomplete_url, params=params)
+        response.raise_for_status()
+        
+        suggestions = [item.get('name', '') for item in response.json()]
+        return jsonify({"suggestions": suggestions})
+    
+    except requests.exceptions.RequestException:
+        # Fallback to empty suggestions if API fails
+        return jsonify({"suggestions": []})
 
 
 

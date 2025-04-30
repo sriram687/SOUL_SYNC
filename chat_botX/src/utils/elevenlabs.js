@@ -5,9 +5,8 @@ const ELEVENLABS_API_KEY = import.meta.env.VITE_ELEVENLABS_API_KEY; // Replace w
 
 export const uploadVoiceClone = async (audioBlob) => {
   const formData = new FormData();
-  formData.append('name', 'SoulSyncVoice'); // Name for the cloned voice
+  formData.append('name', 'SoulSyncVoice');
   formData.append('files', new File([audioBlob], 'voice-sample.wav', { type: 'audio/wav' }));
-
 
   try {
     const response = await axios.post(
@@ -21,13 +20,23 @@ export const uploadVoiceClone = async (audioBlob) => {
       }
     );
 
-    return response.data.voice_id; // Return the voice_id
+    const voiceId = response.data.voice_id;
+    localStorage.setItem('elevenLabsVoiceId', voiceId); // Save it here
+    return voiceId;
   } catch (error) {
-    console.error("Error uploading voice sample:", error.response ? error.response.data : error.message);
-    throw error;
-}
+    const errMsg = error?.response?.data?.detail || error.message;
+    console.error("Voice upload failed:", errMsg);
 
+    if (errMsg.includes("maximum number of custom voices")) {
+      alert("You've hit the limit! Delete an old voice from ElevenLabs before uploading a new one.");
+    } else {
+      alert("Voice upload failed: " + errMsg);
+    }
+
+    throw error;
+  }
 };
+
 
 // utils/elevenlabs.js
 export const textToSpeech = async (text, voiceId) => {

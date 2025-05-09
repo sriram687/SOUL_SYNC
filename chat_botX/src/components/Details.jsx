@@ -1,8 +1,16 @@
-import React, { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
-import { Loader2, Utensils, FileText, Brain } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Loader2, Utensils, FileText, Brain, Plus, X, BarChart2, Heart, Clock, Activity, Flame, Droplet, Zap, Scissors } from 'lucide-react';
 import axios from 'axios';
 import { Link } from "react-router-dom";
+import { toast, ToastContainer } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
+import { CircularProgressbar, buildStyles } from 'react-circular-progressbar';
+import 'react-circular-progressbar/dist/styles.css';
+import { Chart } from 'react-google-charts';
+import { Tooltip } from 'react-tooltip';
+import { Carousel } from 'react-responsive-carousel';
+import 'react-responsive-carousel/lib/styles/carousel.min.css';
 
 const Nutrition = () => {
   // Personal Metrics State
@@ -23,19 +31,52 @@ const Nutrition = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [nutrients, setNutrients] = useState([]);
+  const [dailyGoals, setDailyGoals] = useState({
+    calories: 2000,
+    protein: 50,
+    carbs: 300,
+    fat: 65
+  });
+  const [activeTab, setActiveTab] = useState('search');
+  const [mealType, setMealType] = useState('breakfast');
+  const [showModal, setShowModal] = useState(false);
+  const [waterIntake, setWaterIntake] = useState(0);
+  const searchInputRef = useRef(null);
+
+  // Calculate daily progress
+  const calculateProgress = () => {
+    const totals = diaryEntries.reduce((acc, entry) => {
+      return {
+        calories: acc.calories + (parseFloat(entry.food.calories) || 0),
+        protein: acc.protein + (parseFloat(entry.food.protein) || 0),
+        carbs: acc.carbs + (parseFloat(entry.food.carbs) || 0),
+        fat: acc.fat + (parseFloat(entry.food.fat) || 0)
+      };
+    }, { calories: 0, protein: 0, carbs: 0, fat: 0 });
+
+    return {
+      calories: Math.min((totals.calories / dailyGoals.calories) * 100, 100),
+      protein: Math.min((totals.protein / dailyGoals.protein) * 100, 100),
+      carbs: Math.min((totals.carbs / dailyGoals.carbs) * 100, 100),
+      fat: Math.min((totals.fat / dailyGoals.fat) * 100, 100)
+    };
+  };
+
+  const progress = calculateProgress();
 
   // Safe nutrition value extraction
   const extractNutritionValue = (food, nutrientId) => {
     if (!food.foodNutrients) return 'N/A';
     
     const nutrient = food.foodNutrients.find(n => n.nutrientId === nutrientId);
-    return nutrient ? `${nutrient.value} ${nutrient.unitName.toLowerCase()}` : 'N/A';
+    return nutrient ? `${Math.round(nutrient.value * 10) / 10} ${nutrient.unitName.toLowerCase()}` : 'N/A';
   };
 
   // Food Search
   const searchFood = async () => {
     if (!foodQuery.trim()) {
       setError('Please enter a food name');
+      toast.error('Please enter a food name');
       return;
     }
 
@@ -49,8 +90,12 @@ const Nutrition = () => {
       );
       
       setFoodResults(response.data.foods || []);
+      if (response.data.foods?.length === 0) {
+        toast.info('No results found. Try a different search term.');
+      }
     } catch (err) {
       setError('Failed to fetch food data');
+      toast.error('Failed to fetch food data');
       console.error('Search error:', err);
     } finally {
       setLoading(false);
@@ -89,12 +134,19 @@ const Nutrition = () => {
       // Extract and format nutrients for display
       if (response.data.foodNutrients) {
         const importantNutrients = response.data.foodNutrients.filter(n => 
-          [1008, 1003, 1004, 1005].includes(n.nutrientId)
+          [1008, 1003, 1004, 1005, 1093, 1087, 1089, 1106].includes(n.nutrientId)
         );
         setNutrients(importantNutrients);
       }
+      
+      // Scroll to details section
+      setTimeout(() => {
+        document.getElementById('nutrition-details')?.scrollIntoView({ behavior: 'smooth' });
+      }, 100);
+      
     } catch (err) {
       setError('Failed to fetch food details');
+      toast.error('Failed to fetch food details');
       console.error('Food details error:', err);
     } finally {
       setLoading(false);
@@ -105,275 +157,798 @@ const Nutrition = () => {
   const addToDiary = (food, mealType) => {
     if (!food) return;
 
-    const foodName = food.description || 'Unknown Food';
-    setDiaryEntries(prev => [
-      ...prev,
-      {
-        id: Date.now(),
-        food: { 
-          name: foodName,
-          calories: extractNutritionValue(food, 1008), // Energy
-          protein: extractNutritionValue(food, 1003), // Protein
-          carbs: extractNutritionValue(food, 1005),   // Carbohydrate
-          fat: extractNutritionValue(food, 1004)      // Fat
-        },
-        mealType,
-        date: new Date().toISOString()
-      }
-    ]);
+    const foodName = food.description || food.brandOwner || 'Unknown Food';
+    const newEntry = {
+      id: Date.now(),
+      food: { 
+        name: foodName,
+        calories: extractNutritionValue(food, 1008), // Energy
+        protein: extractNutritionValue(food, 1003), // Protein
+        carbs: extractNutritionValue(food, 1005),   // Carbohydrate
+        fat: extractNutritionValue(food, 1004),     // Fat
+        fdcId: food.fdcId
+      },
+      mealType,
+      date: new Date().toISOString()
+    };
+    
+    setDiaryEntries(prev => [newEntry, ...prev]);
+    toast.success(`${foodName} added to ${mealType}!`);
+    setShowModal(false);
   };
 
+  // Remove from Diary
+  const removeFromDiary = (id) => {
+    setDiaryEntries(prev => prev.filter(entry => entry.id !== id));
+    toast.info('Food removed from diary');
+  };
+
+  const chartOptions = {
+    responsive: true,
+    plugins: {
+      legend: { position: 'top' },
+      title: {
+        display: true,
+        text: 'Nutrition Chart',
+      },
+    },
+  };
+  
   // Common nutrients IDs (USDA standard)
   const nutrientMap = {
-    1008: { name: 'Calories', unit: 'kcal' },
-    1003: { name: 'Protein', unit: 'g' },
-    1004: { name: 'Fat', unit: 'g' },
-    1005: { name: 'Carbohydrate', unit: 'g' },
-    1093: { name: 'Sodium', unit: 'mg' },
-    1087: { name: 'Calcium', unit: 'mg' },
-    1089: { name: 'Iron', unit: 'mg' },
-    1106: { name: 'Vitamin D', unit: 'IU' }
+    1008: { name: 'Calories', unit: 'kcal', icon: <Flame className="w-4 h-4" /> },
+    1003: { name: 'Protein', unit: 'g', icon: <Scissors className="w-4 h-4" /> },
+    1004: { name: 'Fat', unit: 'g', icon: <Droplet className="w-4 h-4" /> },
+    1005: { name: 'Carbs', unit: 'g', icon: <Zap className="w-4 h-4" /> },
+    1093: { name: 'Sodium', unit: 'mg', icon: <Activity className="w-4 h-4" /> },
+    1087: { name: 'Calcium', unit: 'mg', icon: <Plus className="w-4 h-4" /> },
+    1089: { name: 'Iron', unit: 'mg', icon: <Plus className="w-4 h-4" /> },
+    1106: { name: 'Vitamin D', unit: 'IU', icon: <Plus className="w-4 h-4" /> }
   };
 
+  // Calculate meal totals
+  const calculateMealTotals = (mealType) => {
+    return diaryEntries
+      .filter(entry => entry.mealType.toLowerCase() === mealType.toLowerCase())
+      .reduce((acc, entry) => {
+        return {
+          calories: acc.calories + (parseFloat(entry.food.calories) || 0),
+          protein: acc.protein + (parseFloat(entry.food.protein) || 0),
+          carbs: acc.carbs + (parseFloat(entry.food.carbs) || 0),
+          fat: acc.fat + (parseFloat(entry.food.fat) || 0)
+        };
+      }, { calories: 0, protein: 0, carbs: 0, fat: 0 });
+  };
+
+  // Chart data for macro nutrients
+  const macroData = [
+    ['Macro', 'Amount'],
+    ['Protein', parseFloat(calculateMealTotals('all').protein)],
+    ['Carbs', parseFloat(calculateMealTotals('all').carbs)],
+    ['Fat', parseFloat(calculateMealTotals('all').fat)]
+  ];
+  
+  // Popular foods to suggest
+  const popularFoods = [
+    { name: 'Apple', emoji: '🍎' },
+    { name: 'Banana', emoji: '🍌' },
+    { name: 'Chicken Breast', emoji: '🍗' },
+    { name: 'Salmon', emoji: '🐟' },
+    { name: 'Egg', emoji: '🥚' },
+    { name: 'Avocado', emoji: '🥑' },
+    { name: 'Broccoli', emoji: '🥦' },
+    { name: 'Rice', emoji: '🍚' }
+  ];
+
+  // Focus search input on mount
+  useEffect(() => {
+    searchInputRef.current?.focus();
+  }, []);
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-yellow-300 via-emerald-400 to-yellow-500">
-      <header className="fixed top-0 w-full z-50 flex justify-between items-center p-5 bg-green-600 backdrop-blur-md">
+    <div className="min-h-screen bg-gradient-to-br from-emerald-50 to-yellow-50">
+      <ToastContainer position="top-right" autoClose={3000} />
+      
+      <header className="fixed top-0 w-full z-50 flex justify-between items-center p-5 bg-white/80 backdrop-blur-md shadow-sm">
         <div className="flex items-center gap-3">
           <Link to="/" className="flex items-center gap-2 cursor-pointer">
-            <Brain className="w-10 h-10 text-white" />
-            <h1 className="text-2xl font-bold">Soul Sync</h1>
+            <Brain className="w-10 h-10 text-emerald-600" />
+            <h1 className="text-2xl font-bold bg-gradient-to-r from-emerald-600 to-yellow-500 bg-clip-text text-transparent">
+              Soul Sync
+            </h1>
           </Link>
+        </div>
+        
+        <div className="flex items-center gap-4">
+          <button 
+            onClick={() => setActiveTab('search')}
+            className={`px-4 py-2 rounded-full transition ${activeTab === 'search' ? 'bg-emerald-100 text-emerald-700' : 'text-gray-600 hover:bg-gray-100'}`}
+          >
+            Food Search
+          </button>
+          <button 
+            onClick={() => setActiveTab('diary')}
+            className={`px-4 py-2 rounded-full transition ${activeTab === 'diary' ? 'bg-emerald-100 text-emerald-700' : 'text-gray-600 hover:bg-gray-100'}`}
+          >
+            My Diary
+          </button>
+          <button 
+            onClick={() => setActiveTab('insights')}
+            className={`px-4 py-2 rounded-full transition ${activeTab === 'insights' ? 'bg-emerald-100 text-emerald-700' : 'text-gray-600 hover:bg-gray-100'}`}
+          >
+            Insights
+          </button>
         </div>
       </header>
       
-      <div className="min-h-screen mt-20 bg-yellow-green-50 p-6">
-        <div className="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-6">
-          {/* Left Column - Personal Metrics */}
-          <div className="md:col-span-1 space-y-6">
-            <motion.div 
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              className="bg-white rounded-xl p-6 shadow-lg"
+      <div className="min-h-screen pt-24 pb-10 px-6">
+        <AnimatePresence mode="wait">
+          {activeTab === 'search' && (
+            <motion.div
+              key="search"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              transition={{ duration: 0.3 }}
+              className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-8"
             >
-              <h2 className="text-xl font-bold text-green-800 mb-4">Personal Metrics</h2>
-              <div className="space-y-4">
-                <input
-                  type="number"
-                  placeholder="Weight (kg)"
-                  className="w-full p-3 border border-green-200 rounded-lg"
-                  value={bodyMetrics.weight}
-                  onChange={(e) => setBodyMetrics({...bodyMetrics, weight: e.target.value})}
-                />
-                <input
-                  type="number"
-                  placeholder="Height (cm)"
-                  className="w-full p-3 border border-green-200 rounded-lg"
-                  value={bodyMetrics.height}
-                  onChange={(e) => setBodyMetrics({...bodyMetrics, height: e.target.value})}
-                />
-                <select
-                  className="w-full p-3 border border-green-200 rounded-lg"
-                  value={bodyMetrics.activityLevel}
-                  onChange={(e) => setBodyMetrics({...bodyMetrics, activityLevel: e.target.value})}
+              {/* Left Column - Personal Metrics */}
+              <div className="lg:col-span-1 space-y-6">
+                <motion.div 
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ delay: 0.1 }}
+                  className="bg-white rounded-2xl p-6 shadow-lg border border-gray-100"
                 >
-                  <option value="sedentary">Sedentary</option>
-                  <option value="moderate">Moderate</option>
-                  <option value="active">Active</option>
-                </select>
-              </div>
-            </motion.div>
-
-            {/* Food Diary */}
-            <motion.div 
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ delay: 0.1 }}
-              className="bg-white rounded-xl p-6 shadow-lg"
-            >
-              <h2 className="text-xl font-bold text-green-800 mb-4">Food Diary</h2>
-              {diaryEntries.length > 0 ? (
-                <div className="space-y-2">
-                  {diaryEntries.map(entry => (
-                    <div key={entry.id} className="p-3 bg-green-50 rounded-lg">
-                      <p className="font-medium">{entry.food.name}</p>
-                      <p className="text-sm text-gray-600">
-                        {entry.mealType} • {new Date(entry.date).toLocaleTimeString()}
-                      </p>
-                      <div className="text-xs text-gray-500 mt-1">
-                        {entry.food.calories} | 
-                        P: {entry.food.protein} | 
-                        C: {entry.food.carbs} | 
-                        F: {entry.food.fat}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-gray-500">No entries yet</p>
-              )}
-            </motion.div>
-          </div>
-
-          {/* Middle Column - Food Search */}
-          <div className="md:col-span-1 space-y-6">
-            <motion.div 
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ delay: 0.2 }}
-              className="bg-white rounded-xl p-6 shadow-lg"
-            >
-              <div className="flex items-center gap-2 mb-4">
-                <Utensils className="text-green-600" />
-                <h2 className="text-xl font-bold text-green-800">Food Search</h2>
-              </div>
-
-              <div className="relative">
-                <input
-                  type="text"
-                  placeholder="Search for food..."
-                  className="w-full p-3 border border-green-200 rounded-lg"
-                  value={foodQuery}
-                  onChange={(e) => {
-                    setFoodQuery(e.target.value);
-                    fetchSuggestions(e.target.value);
-                  }}
-                />
-                {suggestions.length > 0 && (
-                  <ul className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg">
-                    {suggestions.map((item, index) => (
-                      <li 
-                        key={index}
-                        className="p-2 hover:bg-green-50 cursor-pointer"
-                        onClick={() => {
-                          setFoodQuery(item);
-                          setSuggestions([]);
-                        }}
-                      >
-                        {item}
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-
-              <button
-                onClick={searchFood}
-                disabled={loading}
-                className="mt-3 w-full bg-green-600 text-white p-3 rounded-lg hover:bg-green-700 transition flex justify-center items-center"
-              >
-                {loading ? <Loader2 className="animate-spin" /> : "Search"}
-              </button>
-
-              {error && <p className="mt-2 text-red-500">{error}</p>}
-
-              {/* Search Results */}
-              <div className="mt-4 space-y-2 max-h-96 overflow-y-auto">
-                {foodResults.map(food => (
-                  <div 
-                    key={food.fdcId}
-                    className="p-3 border-b border-green-100 hover:bg-green-50 cursor-pointer"
-                    onClick={() => getFoodDetails(food.fdcId)}
-                  >
-                    <p className="font-medium">{food.description || food.brandOwner || 'Unknown Food'}</p>
-                    <p className="text-sm text-gray-600">{food.dataType || 'Generic'}</p>
-                  </div>
-                ))}
-              </div>
-            </motion.div>
-          </div>
-
-          {/* Right Column - Food Details */}
-          <div className="md:col-span-1 space-y-6">
-            <motion.div 
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ delay: 0.3 }}
-              className="bg-white rounded-xl p-6 shadow-lg"
-            >
-              <div className="flex items-center gap-2 mb-4">
-                <FileText className="text-green-600" />
-                <h2 className="text-xl font-bold text-green-800">Nutrition Details</h2>
-              </div>
-
-              {selectedFood ? (
-                <div>
-                  <h3 className="text-lg font-semibold">{selectedFood.description || 'Food Details'}</h3>
-                  {selectedFood.brandOwner && (
-                    <p className="text-sm text-gray-600 mb-3">{selectedFood.brandOwner}</p>
-                  )}
+                  <h2 className="text-xl font-bold text-emerald-800 mb-4 flex items-center gap-2">
+                    <Activity className="w-5 h-5" />
+                    Daily Goals
+                  </h2>
                   
-                  <div className="grid grid-cols-2 gap-3 mt-4">
-                    <div className="bg-green-50 p-3 rounded-lg">
-                      <p className="text-sm text-green-700">Calories</p>
-                      <p className="font-bold">
-                        {extractNutritionValue(selectedFood, 1008)}
-                      </p>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="bg-emerald-50 p-4 rounded-xl">
+                      <div className="h-24">
+                        <CircularProgressbar
+                          value={progress.calories}
+                          text={`${Math.round(progress.calories)}%`}
+                          styles={buildStyles({
+                            pathColor: '#10b981',
+                            textColor: '#065f46',
+                            trailColor: '#d1fae5',
+                            textSize: '24px'
+                          })}
+                        />
+                      </div>
+                      <p className="text-center mt-2 text-sm font-medium text-emerald-800">Calories</p>
                     </div>
-                    <div className="bg-green-50 p-3 rounded-lg">
-                      <p className="text-sm text-green-700">Protein</p>
-                      <p className="font-bold">
-                        {extractNutritionValue(selectedFood, 1003)}
-                      </p>
+                    
+                    <div className="bg-emerald-50 p-4 rounded-xl">
+                      <div className="h-24">
+                        <CircularProgressbar
+                          value={progress.protein}
+                          text={`${Math.round(progress.protein)}%`}
+                          styles={buildStyles({
+                            pathColor: '#3b82f6',
+                            textColor: '#1e40af',
+                            trailColor: '#dbeafe',
+                            textSize: '24px'
+                          })}
+                        />
+                      </div>
+                      <p className="text-center mt-2 text-sm font-medium text-blue-800">Protein</p>
                     </div>
-                    <div className="bg-green-50 p-3 rounded-lg">
-                      <p className="text-sm text-green-700">Carbs</p>
-                      <p className="font-bold">
-                        {extractNutritionValue(selectedFood, 1005)}
-                      </p>
+                    
+                    <div className="bg-emerald-50 p-4 rounded-xl">
+                      <div className="h-24">
+                        <CircularProgressbar
+                          value={progress.carbs}
+                          text={`${Math.round(progress.carbs)}%`}
+                          styles={buildStyles({
+                            pathColor: '#f59e0b',
+                            textColor: '#92400e',
+                            trailColor: '#fef3c7',
+                            textSize: '24px'
+                          })}
+                        />
+                      </div>
+                      <p className="text-center mt-2 text-sm font-medium text-amber-800">Carbs</p>
                     </div>
-                    <div className="bg-green-50 p-3 rounded-lg">
-                      <p className="text-sm text-green-700">Fat</p>
-                      <p className="font-bold">
-                        {extractNutritionValue(selectedFood, 1004)}
-                      </p>
+                    
+                    <div className="bg-emerald-50 p-4 rounded-xl">
+                      <div className="h-24">
+                        <CircularProgressbar
+                          value={progress.fat}
+                          text={`${Math.round(progress.fat)}%`}
+                          styles={buildStyles({
+                            pathColor: '#8b5cf6',
+                            textColor: '#5b21b6',
+                            trailColor: '#ede9fe',
+                            textSize: '24px'
+                          })}
+                        />
+                      </div>
+                      <p className="text-center mt-2 text-sm font-medium text-violet-800">Fat</p>
                     </div>
                   </div>
+                </motion.div>
 
-                  {/* Additional Nutrients */}
-                  <div className="mt-4">
-                    <h4 className="font-medium text-green-800 mb-2">Additional Nutrients</h4>
-                    <div className="space-y-2">
-                      {nutrients.filter(n => ![1008, 1003, 1004, 1005].includes(n.nutrientId)).map(nutrient => (
-                        <div key={nutrient.nutrientId} className="flex justify-between">
-                          <span className="text-sm text-gray-700">
-                            {nutrientMap[nutrient.nutrientId]?.name || `Nutrient ${nutrient.nutrientId}`}
-                          </span>
-                          <span className="text-sm font-medium">
-                            {nutrient.value} {nutrient.unitName.toLowerCase()}
-                          </span>
-                        </div>
+                {/* Water Tracker */}
+                <motion.div 
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ delay: 0.2 }}
+                  className="bg-white rounded-2xl p-6 shadow-lg border border-gray-100"
+                >
+                  <h2 className="text-xl font-bold text-blue-800 mb-4 flex items-center gap-2">
+                    <Droplet className="w-5 h-5" />
+                    Water Intake
+                  </h2>
+                  
+                  <div className="flex items-center justify-between mb-4">
+                    <span className="text-sm text-gray-600">Today's goal: 8 glasses</span>
+                    <span className="text-sm font-medium">{waterIntake}/8</span>
+                  </div>
+                  
+                  <div className="grid grid-cols-8 gap-2">
+                    {[...Array(8)].map((_, i) => (
+                      <button
+                        key={i}
+                        onClick={() => setWaterIntake(i + 1)}
+                        className={`h-12 rounded-lg transition-all ${i < waterIntake ? 'bg-blue-500' : 'bg-blue-100'}`}
+                      />
+                    ))}
+                  </div>
+                  
+                  <button 
+                    onClick={() => setWaterIntake(prev => Math.min(prev + 1, 8))}
+                    className="mt-4 w-full bg-blue-100 text-blue-800 py-2 rounded-lg hover:bg-blue-200 transition flex items-center justify-center gap-2"
+                  >
+                    <Plus className="w-4 h-4" />
+                    Add Glass
+                  </button>
+                </motion.div>
+
+                {/* Popular Foods */}
+                <motion.div 
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ delay: 0.3 }}
+                  className="bg-white rounded-2xl p-6 shadow-lg border border-gray-100"
+                >
+                  <h2 className="text-xl font-bold text-emerald-800 mb-4 flex items-center gap-2">
+                    <Heart className="w-5 h-5" />
+                    Popular Foods
+                  </h2>
+                  
+                  <div className="grid grid-cols-4 gap-3">
+                    {popularFoods.map((food, i) => (
+                      <button
+                        key={i}
+                        onClick={() => {
+                          setFoodQuery(food.name);
+                          searchInputRef.current.focus();
+                        }}
+                        className="flex flex-col items-center p-2 rounded-lg hover:bg-emerald-50 transition"
+                        data-tooltip-id="food-tooltip"
+                        data-tooltip-content={food.name}
+                      >
+                        <span className="text-2xl">{food.emoji}</span>
+                        <span className="text-xs mt-1 text-gray-600 truncate w-full text-center">{food.name.split(' ')[0]}</span>
+                      </button>
+                    ))}
+                  </div>
+                </motion.div>
+              </div>
+
+              {/* Middle Column - Food Search */}
+              <div className="lg:col-span-2 space-y-6">
+                <motion.div 
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ delay: 0.2 }}
+                  className="bg-white rounded-2xl p-6 shadow-lg border border-gray-100"
+                >
+                  <div className="flex items-center gap-2 mb-4">
+                    <Utensils className="text-emerald-600" />
+                    <h2 className="text-xl font-bold text-emerald-800">Discover Foods</h2>
+                  </div>
+
+                  <div className="relative">
+                    <div className="relative">
+                      <input
+                        ref={searchInputRef}
+                        type="text"
+                        placeholder="Search for food (e.g., apple, chicken breast)..."
+                        className="w-full p-4 border border-gray-200 rounded-xl text-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                        value={foodQuery}
+                        onChange={(e) => {
+                          setFoodQuery(e.target.value);
+                          fetchSuggestions(e.target.value);
+                        }}
+                        onKeyDown={(e) => e.key === 'Enter' && searchFood()}
+                      />
+                      <button
+                        onClick={searchFood}
+                        disabled={loading}
+                        className="absolute right-2 top-2 bg-emerald-600 text-white p-2 rounded-lg hover:bg-emerald-700 transition flex justify-center items-center"
+                      >
+                        {loading ? <Loader2 className="animate-spin" /> : "Search"}
+                      </button>
+                    </div>
+                    
+                    {suggestions.length > 0 && (
+                      <motion.ul 
+                        initial={{ opacity: 0, y: -10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-xl shadow-xl max-h-60 overflow-y-auto"
+                      >
+                        {suggestions.map((item, index) => (
+                          <motion.li
+                            key={index}
+                            whileHover={{ scale: 1.01 }}
+                            className="p-3 hover:bg-emerald-50 cursor-pointer border-b border-gray-100 last:border-0"
+                            onClick={() => {
+                              setFoodQuery(item);
+                              setSuggestions([]);
+                              searchInputRef.current.focus();
+                            }}
+                          >
+                            {item}
+                          </motion.li>
+                        ))}
+                      </motion.ul>
+                    )}
+                  </div>
+
+                  {error && <p className="mt-2 text-red-500">{error}</p>}
+
+                  {/* Search Results */}
+                  <div className="mt-6">
+                    {foodResults.length > 0 && (
+                      <h3 className="text-lg font-semibold text-gray-700 mb-3">Search Results</h3>
+                    )}
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {foodResults.map(food => (
+                        <motion.div
+                          key={food.fdcId}
+                          whileHover={{ y: -2 }}
+                          className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition cursor-pointer"
+                          onClick={() => getFoodDetails(food.fdcId)}
+                        >
+                          <div className="flex items-start gap-3">
+                            <div className="bg-emerald-100 p-2 rounded-lg">
+                              <Utensils className="w-5 h-5 text-emerald-600" />
+                            </div>
+                            <div>
+                              <p className="font-medium text-gray-900">{food.description || food.brandOwner || 'Unknown Food'}</p>
+                              <p className="text-sm text-gray-500 mt-1">
+                                {food.brandOwner && food.description ? `${food.brandOwner} • ` : ''}
+                                {food.dataType || 'Generic'}
+                              </p>
+                            </div>
+                          </div>
+                        </motion.div>
                       ))}
                     </div>
                   </div>
+                </motion.div>
 
-                  <div className="mt-4 space-x-2">
-                    <button 
-                      onClick={() => addToDiary(selectedFood, 'Breakfast')}
-                      className="px-4 py-2 bg-green-100 text-green-800 rounded-lg text-sm"
+                {/* Nutrition Details */}
+                {selectedFood && (
+                  <motion.div
+                    id="nutrition-details"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ delay: 0.3 }}
+                    className="bg-white rounded-2xl p-6 shadow-lg border border-gray-100"
+                  >
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="flex items-center gap-2">
+                        <FileText className="text-emerald-600" />
+                        <h2 className="text-xl font-bold text-emerald-800">Nutrition Details</h2>
+                      </div>
+                      <button
+                        onClick={() => setShowModal(true)}
+                        className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition"
+                      >
+                        Add to Diary
+                      </button>
+                    </div>
+
+                    <div className="flex flex-col md:flex-row gap-6">
+                      <div className="md:w-1/2">
+                        <h3 className="text-lg font-semibold text-gray-900">
+                          {selectedFood.description || 'Food Details'}
+                        </h3>
+                        {selectedFood.brandOwner && (
+                          <p className="text-sm text-gray-600 mb-4">{selectedFood.brandOwner}</p>
+                        )}
+                        
+                        <div className="grid grid-cols-2 gap-3 mt-4">
+                          <div className="bg-emerald-50 p-4 rounded-xl flex items-center gap-3">
+                            <div className="bg-emerald-100 p-2 rounded-lg">
+                              <Flame className="w-5 h-5 text-emerald-600" />
+                            </div>
+                            <div>
+                              <p className="text-sm text-emerald-700">Calories</p>
+                              <p className="font-bold text-lg">
+                                {extractNutritionValue(selectedFood, 1008)}
+                              </p>
+                            </div>
+                          </div>
+                          
+                          <div className="bg-blue-50 p-4 rounded-xl flex items-center gap-3">
+                            <div className="bg-blue-100 p-2 rounded-lg">
+                              <Scissors className="w-5 h-5 text-blue-600" />
+                            </div>
+                            <div>
+                              <p className="text-sm text-blue-700">Protein</p>
+                              <p className="font-bold text-lg">
+                                {extractNutritionValue(selectedFood, 1003)}
+                              </p>
+                            </div>
+                          </div>
+                          
+                          <div className="bg-amber-50 p-4 rounded-xl flex items-center gap-3">
+                            <div className="bg-amber-100 p-2 rounded-lg">
+                              <Zap className="w-5 h-5 text-amber-600" />
+                            </div>
+                            <div>
+                              <p className="text-sm text-amber-700">Carbs</p>
+                              <p className="font-bold text-lg">
+                                {extractNutritionValue(selectedFood, 1005)}
+                              </p>
+                            </div>
+                          </div>
+                          
+                          <div className="bg-violet-50 p-4 rounded-xl flex items-center gap-3">
+                            <div className="bg-violet-100 p-2 rounded-lg">
+                              <Droplet className="w-5 h-5 text-violet-600" />
+                            </div>
+                            <div>
+                              <p className="text-sm text-violet-700">Fat</p>
+                              <p className="font-bold text-lg">
+                                {extractNutritionValue(selectedFood, 1004)}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                      
+                      <div className="md:w-1/2">
+                        <h4 className="font-medium text-emerald-800 mb-3">Additional Nutrients</h4>
+                        <div className="space-y-3">
+                          {nutrients.filter(n => ![1008, 1003, 1004, 1005].includes(n.nutrientId)).map(nutrient => (
+                            <div key={nutrient.nutrientId} className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
+                              <div className="flex items-center gap-2">
+                                {nutrientMap[nutrient.nutrientId]?.icon || <Plus className="w-4 h-4" />}
+                                <span className="text-sm text-gray-700">
+                                  {nutrientMap[nutrient.nutrientId]?.name || `Nutrient ${nutrient.nutrientId}`}
+                                </span>
+                              </div>
+                              <span className="text-sm font-medium">
+                                {nutrient.value} {nutrient.unitName.toLowerCase()}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </motion.div>
+                )}
+              </div>
+            </motion.div>
+          )}
+
+          {activeTab === 'diary' && (
+            <motion.div
+              key="diary"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              transition={{ duration: 0.3 }}
+              className="max-w-4xl mx-auto"
+            >
+              <div className="bg-white rounded-2xl p-6 shadow-lg border border-gray-100">
+                <div className="flex items-center justify-between mb-6">
+                  <h2 className="text-2xl font-bold text-emerald-800 flex items-center gap-2">
+                    <FileText className="w-6 h-6" />
+                    Food Diary
+                  </h2>
+                  <button
+                    onClick={() => setShowModal(true)}
+                    className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition flex items-center gap-2"
+                  >
+                    <Plus className="w-4 h-4" />
+                    Add Food
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                  {['Breakfast', 'Lunch', 'Dinner'].map(meal => {
+                    const totals = calculateMealTotals(meal);
+                    return (
+                      <div key={meal} className="bg-gray-50 p-4 rounded-xl">
+                        <h3 className="font-medium text-gray-900 mb-2">{meal}</h3>
+                        <div className="space-y-1">
+                          <div className="flex justify-between text-sm">
+                            <span className="text-gray-600">Calories</span>
+                            <span className="font-medium">{Math.round(totals.calories)} kcal</span>
+                          </div>
+                          <div className="flex justify-between text-sm">
+                            <span className="text-gray-600">Protein</span>
+                            <span className="font-medium">{Math.round(totals.protein)}g</span>
+                          </div>
+                          <div className="flex justify-between text-sm">
+                            <span className="text-gray-600">Carbs</span>
+                            <span className="font-medium">{Math.round(totals.carbs)}g</span>
+                          </div>
+                          <div className="flex justify-between text-sm">
+                            <span className="text-gray-600">Fat</span>
+                            <span className="font-medium">{Math.round(totals.fat)}g</span>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {diaryEntries.length > 0 ? (
+                  <div className="space-y-4">
+                    {diaryEntries.map(entry => (
+                      <motion.div
+                        key={entry.id}
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="p-4 bg-white border border-gray-200 rounded-xl shadow-sm hover:shadow-md transition"
+                      >
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <p className="font-medium text-gray-900">{entry.food.name}</p>
+                            <p className="text-sm text-gray-600 mt-1">
+                              {entry.mealType} • {new Date(entry.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            </p>
+                          </div>
+                          <button
+                            onClick={() => removeFromDiary(entry.id)}
+                            className="text-gray-400 hover:text-red-500 transition"
+                          >
+                            <X className="w-5 h-5" />
+                          </button>
+                        </div>
+                        
+                        <div className="grid grid-cols-4 gap-2 mt-3">
+                          <div className="bg-emerald-50 p-2 rounded-lg text-center">
+                            <p className="text-xs text-emerald-700">Calories</p>
+                            <p className="font-medium">{entry.food.calories}</p>
+                          </div>
+                          <div className="bg-blue-50 p-2 rounded-lg text-center">
+                            <p className="text-xs text-blue-700">Protein</p>
+                            <p className="font-medium">{entry.food.protein}</p>
+                          </div>
+                          <div className="bg-amber-50 p-2 rounded-lg text-center">
+                            <p className="text-xs text-amber-700">Carbs</p>
+                            <p className="font-medium">{entry.food.carbs}</p>
+                          </div>
+                          <div className="bg-violet-50 p-2 rounded-lg text-center">
+                            <p className="text-xs text-violet-700">Fat</p>
+                            <p className="font-medium">{entry.food.fat}</p>
+                          </div>
+                        </div>
+                      </motion.div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-10">
+                    <div className="mx-auto w-24 h-24 bg-emerald-100 rounded-full flex items-center justify-center mb-4">
+                      <Utensils className="w-10 h-10 text-emerald-600" />
+                    </div>
+                    <h3 className="text-lg font-medium text-gray-900 mb-2">No entries yet</h3>
+                    <p className="text-gray-600 mb-4">Start by adding foods to your diary</p>
+                    <button
+                      onClick={() => {
+                        setShowModal(true);
+                        setActiveTab('search');
+                      }}
+                      className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition"
                     >
-                      Breakfast
-                    </button>
-                    <button 
-                      onClick={() => addToDiary(selectedFood, 'Lunch')}
-                      className="px-4 py-2 bg-green-100 text-green-800 rounded-lg text-sm"
-                    >
-                      Lunch
-                    </button>
-                    <button 
-                      onClick={() => addToDiary(selectedFood, 'Dinner')}
-                      className="px-4 py-2 bg-green-100 text-green-800 rounded-lg text-sm"
-                    >
-                      Dinner
+                      Add Food
                     </button>
                   </div>
-                </div>
-              ) : (
-                <p className="text-gray-500">Select a food to view details</p>
-              )}
+                )}
+              </div>
             </motion.div>
-          </div>
-        </div>
+          )}
+
+          {activeTab === 'insights' && (
+            <motion.div
+              key="insights"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              transition={{ duration: 0.3 }}
+              className="max-w-4xl mx-auto"
+            >
+              <div className="bg-white rounded-2xl p-6 shadow-lg border border-gray-100">
+                <h2 className="text-2xl font-bold text-emerald-800 flex items-center gap-2 mb-6">
+                  <BarChart2 className="w-6 h-6" />
+                  Nutrition Insights
+                </h2>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+                  <div className="bg-white p-4 rounded-xl border border-gray-200">
+                    <h3 className="font-medium text-gray-900 mb-3">Macronutrient Distribution</h3>
+                    <div className="h-64">
+                                          <Chart
+                        chartType="PieChart"
+                        width="100%"
+                        height="300px"
+                        data={macroData}
+                        options={chartOptions}
+                      />
+
+                    </div>
+                  </div>
+                  
+                  <div className="bg-white p-4 rounded-xl border border-gray-200">
+                    <h3 className="font-medium text-gray-900 mb-3">Daily Progress</h3>
+                    <div className="space-y-4">
+                      <div>
+                        <div className="flex justify-between text-sm mb-1">
+                          <span className="text-emerald-700">Calories</span>
+                          <span>{Math.round(progress.calories)}%</span>
+                        </div>
+                        <div className="w-full bg-gray-200 rounded-full h-2.5">
+                          <div 
+                            className="bg-emerald-600 h-2.5 rounded-full" 
+                            style={{ width: `${progress.calories}%` }}
+                          />
+                        </div>
+                      </div>
+                      
+                      <div>
+                        <div className="flex justify-between text-sm mb-1">
+                          <span className="text-blue-700">Protein</span>
+                          <span>{Math.round(progress.protein)}%</span>
+                        </div>
+                        <div className="w-full bg-gray-200 rounded-full h-2.5">
+                          <div 
+                            className="bg-blue-600 h-2.5 rounded-full" 
+                            style={{ width: `${progress.protein}%` }}
+                          />
+                        </div>
+                      </div>
+                      
+                      <div>
+                        <div className="flex justify-between text-sm mb-1">
+                          <span className="text-amber-700">Carbs</span>
+                          <span>{Math.round(progress.carbs)}%</span>
+                        </div>
+                        <div className="w-full bg-gray-200 rounded-full h-2.5">
+                          <div 
+                            className="bg-amber-600 h-2.5 rounded-full" 
+                            style={{ width: `${progress.carbs}%` }}
+                          />
+                        </div>
+                      </div>
+                      
+                      <div>
+                        <div className="flex justify-between text-sm mb-1">
+                          <span className="text-violet-700">Fat</span>
+                          <span>{Math.round(progress.fat)}%</span>
+                        </div>
+                        <div className="w-full bg-gray-200 rounded-full h-2.5">
+                          <div 
+                            className="bg-violet-600 h-2.5 rounded-full" 
+                            style={{ width: `${progress.fat}%` }}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                
+                <h3 className="font-medium text-gray-900 mb-4">Recent Foods</h3>
+                {diaryEntries.length > 0 ? (
+                  <Carousel
+                    showArrows={true}
+                    showStatus={false}
+                    showThumbs={false}
+                    infiniteLoop={true}
+                    autoPlay={true}
+                    interval={5000}
+                    stopOnHover={true}
+                    className="max-w-md mx-auto"
+                  >
+                    {diaryEntries.slice(0, 5).map(entry => (
+                      <div key={entry.id} className="bg-emerald-50 p-6 rounded-xl text-center h-48 flex flex-col items-center justify-center">
+                        <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mb-4">
+                          <Utensils className="w-8 h-8 text-emerald-600" />
+                        </div>
+                        <h4 className="font-medium text-gray-900">{entry.food.name}</h4>
+                        <p className="text-sm text-gray-600 mt-1">
+                          {entry.mealType} • {new Date(entry.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </p>
+                        <p className="text-xs text-emerald-700 mt-2">
+                          {entry.food.calories} • P: {entry.food.protein} • C: {entry.food.carbs} • F: {entry.food.fat}
+                        </p>
+                      </div>
+                    ))}
+                  </Carousel>
+                ) : (
+                  <div className="text-center py-10 bg-gray-50 rounded-xl">
+                    <p className="text-gray-600">No recent foods to display</p>
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
+
+      {/* Add to Diary Modal */}
+      {showModal && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+          onClick={() => setShowModal(false)}
+        >
+          <motion.div
+            initial={{ scale: 0.9, y: 20 }}
+            animate={{ scale: 1, y: 0 }}
+            className="bg-white rounded-2xl p-6 w-full max-w-md"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-bold text-gray-900">Add to Diary</h3>
+              <button
+                onClick={() => setShowModal(false)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+            
+            {selectedFood ? (
+              <>
+                <p className="mb-4">Add <span className="font-medium">{selectedFood.description || 'this food'}</span> to:</p>
+                
+                <div className="grid grid-cols-2 gap-3">
+                  {['Breakfast', 'Lunch', 'Dinner', 'Snack'].map(meal => (
+                    <button
+                      key={meal}
+                      onClick={() => addToDiary(selectedFood, meal)}
+                      className="p-3 bg-emerald-50 text-emerald-800 rounded-lg hover:bg-emerald-100 transition flex items-center justify-center gap-2"
+                    >
+                      {meal}
+                    </button>
+                  ))}
+                </div>
+              </>
+            ) : (
+              <div className="text-center py-6">
+                <p className="text-gray-600 mb-4">No food selected. Please search and select a food first.</p>
+                <button
+                  onClick={() => {
+                    setShowModal(false);
+                    setActiveTab('search');
+                    setTimeout(() => {
+                      searchInputRef.current?.focus();
+                    }, 300);
+                  }}
+                  className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition"
+                >
+                  Search Foods
+                </button>
+              </div>
+            )}
+          </motion.div>
+        </motion.div>
+      )}
+      
+      <Tooltip id="food-tooltip" />
     </div>
   );
 };

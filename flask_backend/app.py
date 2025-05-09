@@ -8,6 +8,7 @@ from pymongo import MongoClient
 import google.generativeai as genai
 from datetime import datetime, timezone
 from bson import ObjectId
+from bson.json_util import dumps
 import requests
 from io import BytesIO
 import uuid
@@ -23,7 +24,7 @@ USDA_API_KEY = os.getenv('USDA_API_KEY')
 BASE_URL = "https://api.nal.usda.gov/fdc/v1"
 CLIENT_ID = os.getenv("CLIENT_ID")
 CLIENT_SECRET = os.getenv("CLIENT_SECRET")
-TOKEN_URL = "https://oauth.fatsecret.com/connect/token"
+
 
 
 #Getting access token for FatSecret API
@@ -57,6 +58,9 @@ user_preferences = db["user_preferences"]
 feedback_collection = db["feedback"]
 conferences_collection = db["conferences"]
 messages_collection = db["messages"]
+nutrition_diary = db["nutrition_diary"]
+
+
 
 # Configure Google Gemini
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
@@ -221,6 +225,43 @@ def search_food():
     
     except requests.exceptions.RequestException as e:
         return jsonify({"error": str(e)}), 500
+    
+
+
+@app.route('/api/nutrition/diary', methods=['POST'])
+@jwt_required()
+def add_diary_entry():
+    try:
+        user_id = get_jwt_identity()
+        data = request.get_json()
+
+        entry = {
+            "userId": user_id,
+            "date": data["date"],
+            "mealType": data["mealType"],
+            "food": data["food"]
+        }
+
+        nutrition_diary.insert_one(entry)
+        return jsonify({"message": "Entry added successfully"}), 201
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+
+@app.route('/api/nutrition/diary', methods=['GET'])
+@jwt_required()
+def get_user_diary():
+    user_id = get_jwt_identity()
+    date = request.args.get('date')
+    entries = list(nutrition_diary.find({
+        "userId": user_id,
+        "date": date
+    }))
+    return dumps(entries), 200
+
+
+
 
 
 @app.route("/gemini_chat", methods=["POST"])
@@ -347,8 +388,6 @@ def generate_speech_with_elevenlabs(text, voice_id):
 
 
 
-
-
 @app.route('/api/nutrition/autocomplete', methods=['GET'])
 def autocomplete_food():
     query = request.args.get('query')
@@ -374,7 +413,7 @@ def autocomplete_food():
         # Fallback to empty suggestions if API fails
         return jsonify({"suggestions": []})
 
-
+    
 
 
 @app.route("/api/audio/<filename>", methods=["GET"])

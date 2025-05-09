@@ -135,10 +135,10 @@ const HomePage = () => {
         </div>
         <nav className="flex ml-auto gap-7 text-lg">
           <a href="/about" className="hover:text-purple-300 transition-colors">About</a>
-          <a href="/doctor" className="hover:text-purple-300 transition-colors">Find a Doctor</a>
+          <a href="/doctor" className="hover:text-purple-300 transition-colors">Fit track</a>
           <a href="/resources" className="hover:text-purple-300  transition-colors">Resources</a>
           <a href="/calender" className="hover:text-purple-300  transition-colors">Calendar</a>
-          <a href="/details" className="hover:text-purple-300 mr-8 transition-colors">Details</a>
+          <a href="/details" className="hover:text-purple-300 mr-8 transition-colors">Nutri track</a>
           
         </nav>
       </header>

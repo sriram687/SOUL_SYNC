@@ -10,6 +10,8 @@ import Doctor from "./components/Doctor";
 import Calender from './components/Calender.jsx';
 import Details from './components/Details.jsx';
 import Nutrition from './Nutrition/Nutrition.jsx';
+import Pushtrack from './components/Pushtrack.jsx';
+import './App.css'
 
 
 function App(){
@@ -26,6 +28,7 @@ function App(){
       <Route path="/calender" element={<Calender/>}/>
       <Route path="/details" element={<Details/>}/>
       <Route path="/nutrition" element={<Nutrition/>}/>
+      <Route path="/push_cv" element={<Pushtrack/>}/>
       </Routes>
     </Router>
   )

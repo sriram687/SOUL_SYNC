@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Loader2, Utensils, FileText, Brain, Plus, X, BarChart2, Heart, Clock, Activity, Flame, Droplet, Zap, Scissors } from 'lucide-react';
+import { Loader2, Utensils, FileText, Brain, Plus, X, BarChart2, Heart, Clock, Activity, Flame, Droplet, Zap, Scissors, Bell, Target } from 'lucide-react';
 import axios from 'axios';
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { toast, ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import { CircularProgressbar, buildStyles } from 'react-circular-progressbar';
@@ -13,6 +13,21 @@ import { Carousel } from 'react-responsive-carousel';
 import 'react-responsive-carousel/lib/styles/carousel.min.css';
 
 const Nutrition = () => {
+  const navigate = useNavigate();
+
+  // Token expiration check function
+  const isTokenExpired = () => {
+    const token = localStorage.getItem('token');
+    if (!token) return true;
+
+    try {
+      const payload = JSON.parse(atob(token.split('.')[1]));
+      return Date.now() >= payload.exp * 1000;
+    } catch (error) {
+      return true;
+    }
+  };
+
   // Personal Metrics State
   const [bodyMetrics, setBodyMetrics] = useState({
     weight: '',
@@ -39,7 +54,7 @@ const Nutrition = () => {
   });
   const [activeTab, setActiveTab] = useState('search');
   const [mealType, setMealType] = useState('breakfast');
-  const [showModal, setShowModal] = useState(false);z
+  const [showModal, setShowModal] = useState(false);
   const [waterIntake, setWaterIntake] = useState(0);
   const searchInputRef = useRef(null);
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().slice(0, 10));
@@ -48,6 +63,86 @@ const Nutrition = () => {
   const handleDateChange = (date) => {
     setSelectedDate(date);
     fetchDiaryEntries(date);
+  };
+
+  // Notification functions
+  const showWaterReminder = () => {
+    console.log('showWaterReminder called');
+    const waterTips = [
+      "💧 Stay hydrated! Aim for 8 glasses of water daily for optimal health.",
+      "🌊 Your body is 60% water - keep it replenished throughout the day!",
+      "💦 Drinking water helps boost metabolism and aids digestion.",
+      "🥤 Pro tip: Add lemon or cucumber to make water more refreshing!",
+      "⏰ Set hourly reminders to sip water regularly."
+    ];
+
+    const randomTip = waterTips[Math.floor(Math.random() * waterTips.length)];
+
+    toast.info(randomTip, {
+      position: "top-right",
+      autoClose: 5000,
+    });
+  };
+
+  const showDailyGoalsNotification = () => {
+    console.log('showDailyGoalsNotification called');
+    const goalTips = [
+      "🎯 Welcome to your nutrition journey! Set realistic daily goals for success.",
+      "📊 Track your macros: Balance proteins, carbs, and healthy fats.",
+      "🥗 Remember: Small consistent changes lead to big results!",
+      "💪 Your daily goals are personalized - stick to them for optimal health.",
+      "🌟 Every meal is a new opportunity to nourish your body!"
+    ];
+
+    const randomGoalTip = goalTips[Math.floor(Math.random() * goalTips.length)];
+
+    toast.success(randomGoalTip, {
+      position: "top-center",
+      autoClose: 6000,
+    });
+  };
+
+  const showHydrationProgress = (glasses) => {
+    const messages = {
+      1: "🌟 Great start! Keep the momentum going!",
+      2: "💪 You're building a healthy habit!",
+      3: "🔥 Fantastic! Your body is thanking you!",
+      4: "⭐ Halfway there! You're doing amazing!",
+      5: "🚀 Over halfway! Keep pushing forward!",
+      6: "🎉 Excellent progress! Almost at your goal!",
+      7: "🏆 One more glass to go! You've got this!",
+      8: "🎊 Goal achieved! You're a hydration champion!"
+    };
+
+    if (messages[glasses]) {
+      toast.success(messages[glasses], {
+        position: "bottom-right",
+        autoClose: 3000,
+        hideProgressBar: false,
+        closeOnClick: true,
+        pauseOnHover: true,
+        draggable: true,
+        icon: "💧"
+      });
+    }
+  };
+
+  const showNutritionTips = () => {
+    console.log('showNutritionTips called');
+    const nutritionTips = [
+      "🥬 Eat the rainbow! Different colored foods provide various nutrients.",
+      "🍎 Whole foods are always better than processed alternatives.",
+      "🥜 Don't forget healthy fats - they're essential for nutrient absorption!",
+      "🍽️ Practice mindful eating - chew slowly and savor your meals.",
+      "⚖️ Balance is key - no food is completely off-limits in moderation."
+    ];
+
+    const randomNutritionTip = nutritionTips[Math.floor(Math.random() * nutritionTips.length)];
+
+    toast.info(randomNutritionTip, {
+      position: "bottom-left",
+      autoClose: 5000,
+    });
   };
 
   const DateSelector = () => {
@@ -177,13 +272,61 @@ const Nutrition = () => {
 useEffect(() => {
   // Focus search input on mount
   searchInputRef.current?.focus();
-  
+
   // Load today's diary entries
   fetchDiaryEntries();
-  
+
   // Fetch user's saved metrics and goals if you have them stored
   fetchUserMetrics();
+
+  // Test immediate notification
+  console.log('Component mounted, showing test notification');
+  toast.success('🎉 Welcome to Nutrition Tracker!');
 }, []);
+
+// Separate useEffect for notifications to avoid dependency issues
+useEffect(() => {
+  console.log('Notifications useEffect triggered');
+  // Show initial notifications with a slight delay to ensure component is mounted
+  const timer1 = setTimeout(() => {
+    console.log('Timer 1 executing - Daily Goals');
+    showDailyGoalsNotification();
+  }, 2000);
+
+  const timer2 = setTimeout(() => {
+    console.log('Timer 2 executing - Water Reminder');
+    showWaterReminder();
+  }, 5000);
+
+  const timer3 = setTimeout(() => {
+    console.log('Timer 3 executing - Nutrition Tips');
+    showNutritionTips();
+  }, 8000);
+
+  return () => {
+    clearTimeout(timer1);
+    clearTimeout(timer2);
+    clearTimeout(timer3);
+  };
+}, []); // Empty dependency array means this runs once on mount
+
+// Water intake notifications
+useEffect(() => {
+  if (waterIntake > 0) {
+    showHydrationProgress(waterIntake);
+  }
+}, [waterIntake]);
+
+// Periodic water reminders
+useEffect(() => {
+  const waterReminderInterval = setInterval(() => {
+    if (waterIntake < 8) {
+      showWaterReminder();
+    }
+  }, 30 * 60 * 1000); // Every 30 minutes
+
+  return () => clearInterval(waterReminderInterval);
+}, [waterIntake]);
 
 
 
@@ -412,7 +555,19 @@ const fetchUserMetrics = async () => {
   return (
 
     <div className="min-h-screen bg-gradient-to-br from-emerald-50 to-yellow-50">
-      <ToastContainer position="top-right" autoClose={3000} />
+      <ToastContainer
+        position="top-right"
+        autoClose={5000}
+        hideProgressBar={false}
+        newestOnTop={false}
+        closeOnClick
+        rtl={false}
+        pauseOnFocusLoss
+        draggable
+        pauseOnHover
+        theme="light"
+        style={{ zIndex: 9999 }}
+      />
       
       <header className="fixed top-0 w-full z-50 flex justify-between items-center p-5 bg-white/80 backdrop-blur-md shadow-sm">
         <div className="flex items-center gap-3">
@@ -425,23 +580,36 @@ const fetchUserMetrics = async () => {
         </div>
         
         <div className="flex items-center gap-4">
-          <button 
+          <button
             onClick={() => setActiveTab('search')}
             className={`px-4 py-2 rounded-full transition ${activeTab === 'search' ? 'bg-emerald-100 text-emerald-700' : 'text-gray-600 hover:bg-gray-100'}`}
           >
             Food Search
           </button>
-          <button 
+          <button
             onClick={() => setActiveTab('diary')}
             className={`px-4 py-2 rounded-full transition ${activeTab === 'diary' ? 'bg-emerald-100 text-emerald-700' : 'text-gray-600 hover:bg-gray-100'}`}
           >
             My Diary
           </button>
-          <button 
+          <button
             onClick={() => setActiveTab('insights')}
             className={`px-4 py-2 rounded-full transition ${activeTab === 'insights' ? 'bg-emerald-100 text-emerald-700' : 'text-gray-600 hover:bg-gray-100'}`}
           >
             Insights
+          </button>
+          {/* Test notification button */}
+          <button
+            onClick={() => {
+              console.log('Test button clicked');
+              toast.success('🎉 Test notification working!', {
+                position: "top-right",
+                autoClose: 3000,
+              });
+            }}
+            className="px-3 py-2 bg-blue-500 text-white rounded-full text-sm hover:bg-blue-600 transition"
+          >
+            Test
           </button>
         </div>
       </header>
@@ -465,10 +633,19 @@ const fetchUserMetrics = async () => {
                   transition={{ delay: 0.1 }}
                   className="bg-white rounded-2xl p-6 shadow-lg border border-gray-100"
                 >
-                  <h2 className="text-xl font-bold text-emerald-800 mb-4 flex items-center gap-2">
-                    <Activity className="w-5 h-5" />
-                    Daily Goals
-                  </h2>
+                  <div className="flex items-center justify-between mb-4">
+                    <h2 className="text-xl font-bold text-emerald-800 flex items-center gap-2">
+                      <Activity className="w-5 h-5" />
+                      Daily Goals
+                    </h2>
+                    <button
+                      onClick={showDailyGoalsNotification}
+                      className="p-2 bg-emerald-50 text-emerald-700 rounded-lg hover:bg-emerald-100 transition"
+                      title="Get goal tips"
+                    >
+                      <Target className="w-4 h-4" />
+                    </button>
+                  </div>
                   
                   <div className="grid grid-cols-2 gap-4">
                     <div className="bg-emerald-50 p-4 rounded-xl">
@@ -564,13 +741,23 @@ const fetchUserMetrics = async () => {
                     ))}
                   </div>
                   
-                  <button 
-                    onClick={() => setWaterIntake(prev => Math.min(prev + 1, 8))}
-                    className="mt-4 w-full bg-blue-100 text-blue-800 py-2 rounded-lg hover:bg-blue-200 transition flex items-center justify-center gap-2"
-                  >
-                    <Plus className="w-4 h-4" />
-                    Add Glass
-                  </button>
+                  <div className="mt-4 space-y-2">
+                    <button
+                      onClick={() => setWaterIntake(prev => Math.min(prev + 1, 8))}
+                      className="w-full bg-blue-100 text-blue-800 py-2 rounded-lg hover:bg-blue-200 transition flex items-center justify-center gap-2"
+                    >
+                      <Plus className="w-4 h-4" />
+                      Add Glass
+                    </button>
+
+                    <button
+                      onClick={showWaterReminder}
+                      className="w-full bg-blue-50 text-blue-700 py-2 rounded-lg hover:bg-blue-100 transition flex items-center justify-center gap-2 text-sm"
+                    >
+                      <Bell className="w-4 h-4" />
+                      Get Hydration Tip
+                    </button>
+                  </div>
                 </motion.div>
 
                 {/* Popular Foods */}
@@ -1118,6 +1305,20 @@ const fetchUserMetrics = async () => {
       )}
       
       <Tooltip id="food-tooltip" />
+
+      {/* Floating Nutrition Tips Button */}
+      <motion.button
+        onClick={showNutritionTips}
+        className="fixed bottom-6 right-6 bg-gradient-to-r from-emerald-500 to-green-600 text-white p-4 rounded-full shadow-lg hover:shadow-xl transition-all duration-300 z-40"
+        whileHover={{ scale: 1.1 }}
+        whileTap={{ scale: 0.95 }}
+        title="Get nutrition tips"
+        initial={{ opacity: 0, y: 100 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 1, duration: 0.5 }}
+      >
+        <Bell className="w-6 h-6" />
+      </motion.button>
     </div>
   );
 };

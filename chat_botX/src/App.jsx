@@ -11,6 +11,7 @@ import Calender from './components/Calender.jsx';
 import Details from './components/Details.jsx';
 import Nutrition from './Nutrition/Nutrition.jsx';
 import Pushtrack from './components/Pushtrack.jsx';
+import ToastTest from './components/ToastTest.jsx';
 import './App.css'
 
 
@@ -29,6 +30,7 @@ function App(){
       <Route path="/details" element={<Details/>}/>
       <Route path="/nutrition" element={<Nutrition/>}/>
       <Route path="/push_cv" element={<Pushtrack/>}/>
+      <Route path="/toast-test" element={<ToastTest/>}/>
       </Routes>
     </Router>
   )

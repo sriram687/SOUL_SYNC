@@ -138,7 +138,7 @@ const HomePage = () => {
           <a href="/doctor" className="hover:text-purple-300 transition-colors">Fit track</a>
           <a href="/resources" className="hover:text-purple-300  transition-colors">Resources</a>
           <a href="/calender" className="hover:text-purple-300  transition-colors">Calendar</a>
-          <a href="/details" className="hover:text-purple-300 mr-8 transition-colors">Nutri track</a>
+          <a href="/nutrition" className="hover:text-purple-300 mr-8 transition-colors">Nutri track</a>
           
         </nav>
       </header>

@@ -69,7 +69,7 @@ const testimonials = [
 ];
 
 const statistics = [
-  { icon: Users, value: "2", label: "Active Users" },
+  { icon: Users, value: "10", label: "Active Users" },
   { icon: MessageCircle, value: "Minimal", label: "Conversations" },
   { icon: ThumbsUp, value: "98%", label: "Satisfaction Rate" },
   { icon: Gift, value: "24/7", label: "Availability" }

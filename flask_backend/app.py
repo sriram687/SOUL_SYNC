@@ -78,7 +78,7 @@ genai.configure(api_key=GEMINI_API_KEY)
 model = genai.GenerativeModel('gemini-1.5-flash')
 
 # Configure separate Gemini model for pushup chatbot
-PUSHUP_GEMINI_API_KEY = "AIzaSyB4fmX1trQNMTuf9S8JZyZEzGb5BSE9Xl4"  # This should be in .env file in production
+PUSHUP_GEMINI_API_KEY = "AIzaSyByFlx4W4eqcf4v59YThSOpLKO7lX7nUkE"  # This should be in .env file in production
 
 # Dictionary to store pushup chatbot sessions
 pushup_chatbot_sessions = {}

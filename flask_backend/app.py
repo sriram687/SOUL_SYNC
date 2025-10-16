@@ -10,6 +10,7 @@ from datetime import datetime, timezone
 from bson import ObjectId
 from bson.json_util import dumps
 import requests
+import subprocess
 from io import BytesIO
 import uuid
 import tempfile
@@ -28,6 +29,7 @@ USDA_API_KEY = os.getenv('USDA_API_KEY')
 BASE_URL = "https://api.nal.usda.gov/fdc/v1"
 CLIENT_ID = os.getenv("CLIENT_ID")
 CLIENT_SECRET = os.getenv("CLIENT_SECRET")
+TOKEN_URL = os.getenv("TOKEN_URL", "https://oauth.fatsecret.com/connect/token")  # FatSecret OAuth2 token endpoint (override via .env)
 
 
 sessions = {}
@@ -75,10 +77,10 @@ nutrition_diary = db["nutrition_diary"]
 # Configure Google Gemini
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 genai.configure(api_key=GEMINI_API_KEY)
-model = genai.GenerativeModel('gemini-1.5-flash')
+model = genai.GenerativeModel('gemini-2.0-flash')
 
 # Configure separate Gemini model for pushup chatbot
-PUSHUP_GEMINI_API_KEY = "AIzaSyByFlx4W4eqcf4v59YThSOpLKO7lX7nUkE"  # This should be in .env file in production
+PUSHUP_GEMINI_API_KEY = "AIzaSyC72n_DrNfm1bnUTkJiZqh6Gd39j8-Nre8"  # This should be in .env file in production
 
 # Dictionary to store pushup chatbot sessions
 pushup_chatbot_sessions = {}
@@ -442,7 +444,7 @@ def pushup_chat_start():
         # Configure Gemini with the pushup-specific API key
         pushup_genai = genai
         pushup_genai.configure(api_key=PUSHUP_GEMINI_API_KEY)
-        pushup_model = pushup_genai.GenerativeModel('gemini-1.5-flash')
+        pushup_model = pushup_genai.GenerativeModel('gemini-2.0-flash')
 
         # Welcome message
         welcome_message = "Hi there! I'm Fitness Buddy, your dedicated push-up assistant. I'm here to help you perfect your form, track your progress, and achieve your fitness goals. Whether you're a beginner or looking to advance your push-up routine, I've got your back! What would you like to know about push-ups today?"
@@ -515,7 +517,7 @@ def pushup_chat_message():
             # Configure Gemini with the pushup-specific API key
             pushup_genai = genai
             pushup_genai.configure(api_key=PUSHUP_GEMINI_API_KEY)
-            pushup_model = pushup_genai.GenerativeModel('gemini-1.5-flash')
+            pushup_model = pushup_genai.GenerativeModel('gemini-2.0-flash')
 
             # Initialize chat history
             pushup_chatbot_sessions[user_id] = {
@@ -1075,19 +1077,23 @@ def gemini_chat():
         # Empathetic and supportive chatbot prompt with voice-friendly instructions if needed
         if output_mode == "voice":
             prompt = (
-                "You are a supportive and empathetic chatbot designed to provide comfort, encouragement, "
-                "and thoughtful responses to users, particularly women, on emotional and mental well-being topics. "
-                "Your goal is to create a safe space for users to express themselves while offering appropriate guidance. "
-                "Since your response will be read aloud by text-to-speech, use natural, conversational language "
-                "with good pacing. Avoid complex sentences or unusual characters that might be difficult to pronounce. "
-                "Respond concisely (within 50 words) while maintaining warmth and reassurance.\n\nUser: " + user_input
+                 "You are a supportive and empathetic chatbot that responds like a caring friend. "
+        "Your goal is to comfort, encourage, and gently guide users, especially women, "
+        "who open up about emotional or mental well-being topics. "
+        "Create a safe, understanding space using natural, conversational language suited for text-to-speech. "
+        "Avoid exaggerated empathy or endearments like 'dear' or 'honey'. "
+        "Respond extremely concisely (target: 1–2 sentences, max 15 words) while sounding calm, kind, and real.\n\n"
+        "User: " + user_input
+
             )
         else:
             prompt = (
-                "You are a supportive and empathetic chatbot designed to provide comfort, encouragement, "
-                "and thoughtful responses to users, particularly women, on emotional and mental well-being topics. "
-                "Your goal is to create a safe space for users to express themselves while offering appropriate guidance. "
-                "Respond concisely (within 30 words) while maintaining warmth and reassurance.\n\nUser: " + user_input
+                "You are a supportive and empathetic chatbot that responds like a caring friend. "
+            "Your goal is to comfort, encourage, and gently guide users, especially women, "
+            "who open up about emotional or mental well-being topics. "
+            "Avoid exaggerated empathy or endearments like 'dear' or 'honey'. "
+            "Respond extremely concisely (target: 1–2 sentences, max 15 words) while sounding calm, kind, and real.\n\n"
+            "User: " + user_input
             )
 
         responses = model.generate_content(prompt, stream=True)

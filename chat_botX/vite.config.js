@@ -12,5 +12,8 @@ export default defineConfig({
       "/logout": VITE_BACKEND_URL
     }
   },
+  build: {
+    outDir: 'dist'
+  },
   plugins: [react(),tailwindcss()]
 })

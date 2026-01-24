@@ -167,6 +167,7 @@ def start_direct_counter():
                                       stderr=subprocess.PIPE,
                                       text=True)
 
+
         # Store the process ID and create a session ID
         process_id = process.pid
         session_id = str(uuid.uuid4())

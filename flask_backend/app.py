@@ -14,14 +14,18 @@ import subprocess
 from io import BytesIO
 import uuid
 import tempfile
-import cv2
-import numpy as np
-from push_counter import PushUpCounter  # Your CV class
+# import cv2
+# import numpy as np
+# from push_counter import PushUpCounter  # Your CV class
 import base64
 
 
 # Load environment variables
 load_dotenv()
+
+# DISABLE PUSHUP FUNCTIONALITY FOR DEPLOYMENT
+ENABLE_PUSHUP_FEATURES = False
+
 app = Flask(__name__)
 app.config['JWT_SECRET_KEY'] = os.getenv('JWT_SECRET_KEY', 'default-secret-key')
 CORS(app)
@@ -33,7 +37,7 @@ TOKEN_URL = os.getenv("TOKEN_URL", "https://oauth.fatsecret.com/connect/token") 
 
 
 sessions = {}
-active_counters = {}
+# active_counters = {}
 
 
 #Getting access token for FatSecret API
@@ -80,10 +84,10 @@ genai.configure(api_key=GEMINI_API_KEY)
 model = genai.GenerativeModel('gemini-2.0-flash')
 
 # Configure separate Gemini model for pushup chatbot
-PUSHUP_GEMINI_API_KEY = "AIzaSyC72n_DrNfm1bnUTkJiZqh6Gd39j8-Nre8"  # This should be in .env file in production
+# PUSHUP_GEMINI_API_KEY = "AIzaSyC72n_DrNfm1bnUTkJiZqh6Gd39j8-Nre8"  # This should be in .env file in production
 
 # Dictionary to store pushup chatbot sessions
-pushup_chatbot_sessions = {}
+# pushup_chatbot_sessions = {}
 
 # ElevenLabs voice API configuration
 ELEVENLABS_API_KEY = os.getenv("ELEVENLABS_API_KEY", "sk_0e6a4b11b085079f89561266e6270d9816fb0c5e66a25570")
@@ -106,6 +110,12 @@ def log_requests():
 
 @app.route('/api/start_workout', methods=['POST'])
 def start_workout():
+    if not ENABLE_PUSHUP_FEATURES:
+        return jsonify({
+            'status': 'disabled',
+            'message': 'Push-up functionality is disabled in this deployment'
+        }), 503
+        
     print('[start_workout] Received POST request')
     print('[start_workout] Request JSON:', request.json)
     try:
@@ -113,10 +123,10 @@ def start_workout():
         session_id = str(uuid.uuid4())
 
         print('[start_workout] Initializing PushUpCounter for user:', user_id)
-        counter = PushUpCounter(user_id)
+        # counter = PushUpCounter(user_id)
 
         print('[start_workout] Storing session:', session_id)
-        active_counters[session_id] = counter
+        # active_counters[session_id] = counter
         sessions[session_id] = {
             'user_id': user_id,
             'start_time': datetime.now().isoformat(),
@@ -141,6 +151,12 @@ running_counters = {}
 
 @app.route('/api/start_direct_counter', methods=['POST'])
 def start_direct_counter():
+    if not ENABLE_PUSHUP_FEATURES:
+        return jsonify({
+            'status': 'disabled',
+            'message': 'Push-up functionality is disabled in this deployment'
+        }), 503
+        
     """Start the push_counter.py script directly as a separate process"""
     try:
         user_id = request.json.get('user_id', 'default_user')
@@ -313,6 +329,12 @@ def stop_direct_counter():
 
 @app.route('/api/process_frame', methods=['POST'])
 def process_frame():
+    if not ENABLE_PUSHUP_FEATURES:
+        return jsonify({
+            'status': 'disabled',
+            'message': 'Push-up functionality is disabled in this deployment'
+        }), 503
+        
     print('[process_frame] Received POST request')
     try:
         # Validate session

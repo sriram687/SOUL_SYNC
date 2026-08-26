@@ -14,17 +14,17 @@ import subprocess
 from io import BytesIO
 import uuid
 import tempfile
-# import cv2
-# import numpy as np
-# from push_counter import PushUpCounter  # Your CV class
+import cv2
+import numpy as np
+from push_counter import PushUpCounter  # Your CV class
 import base64
 
 
 # Load environment variables
 load_dotenv()
 
-# DISABLE PUSHUP FUNCTIONALITY FOR DEPLOYMENT
-ENABLE_PUSHUP_FEATURES = False
+# ENABLE PUSHUP FUNCTIONALITY
+ENABLE_PUSHUP_FEATURES = True
 
 app = Flask(__name__)
 app.config['JWT_SECRET_KEY'] = os.getenv('JWT_SECRET_KEY', 'default-secret-key')
@@ -37,7 +37,7 @@ TOKEN_URL = os.getenv("TOKEN_URL", "https://oauth.fatsecret.com/connect/token") 
 
 
 sessions = {}
-# active_counters = {}
+active_counters = {}
 
 
 #Getting access token for FatSecret API
@@ -81,13 +81,13 @@ nutrition_diary = db["nutrition_diary"]
 # Configure Google Gemini
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 genai.configure(api_key=GEMINI_API_KEY)
-model = genai.GenerativeModel('gemini-2.0-flash')
+model = genai.GenerativeModel('gemini-2.5-flash')
 
 # Configure separate Gemini model for pushup chatbot
-# PUSHUP_GEMINI_API_KEY = "AIzaSyC72n_DrNfm1bnUTkJiZqh6Gd39j8-Nre8"  # This should be in .env file in production
+PUSHUP_GEMINI_API_KEY = os.getenv("PUSHUP_GEMINI_API_KEY", os.getenv("GEMINI_API_KEY", "AIzaSyC72n_DrNfm1bnUTkJiZqh6Gd39j8-Nre8"))
 
 # Dictionary to store pushup chatbot sessions
-# pushup_chatbot_sessions = {}
+pushup_chatbot_sessions = {}
 
 # ElevenLabs voice API configuration
 ELEVENLABS_API_KEY = os.getenv("ELEVENLABS_API_KEY", "sk_0e6a4b11b085079f89561266e6270d9816fb0c5e66a25570")
@@ -467,7 +467,7 @@ def pushup_chat_start():
         # Configure Gemini with the pushup-specific API key
         pushup_genai = genai
         pushup_genai.configure(api_key=PUSHUP_GEMINI_API_KEY)
-        pushup_model = pushup_genai.GenerativeModel('gemini-2.0-flash')
+        pushup_model = pushup_genai.GenerativeModel('gemini-2.5-flash')
 
         # Welcome message
         welcome_message = "Hi there! I'm Fitness Buddy, your dedicated push-up assistant. I'm here to help you perfect your form, track your progress, and achieve your fitness goals. Whether you're a beginner or looking to advance your push-up routine, I've got your back! What would you like to know about push-ups today?"
@@ -540,7 +540,7 @@ def pushup_chat_message():
             # Configure Gemini with the pushup-specific API key
             pushup_genai = genai
             pushup_genai.configure(api_key=PUSHUP_GEMINI_API_KEY)
-            pushup_model = pushup_genai.GenerativeModel('gemini-2.0-flash')
+            pushup_model = pushup_genai.GenerativeModel('gemini-2.5-flash')
 
             # Initialize chat history
             pushup_chatbot_sessions[user_id] = {
@@ -1119,7 +1119,7 @@ def gemini_chat():
             "User: " + user_input
             )
 
-        responses = model.generate_content(prompt, stream=True)
+        responses = model.generate_content(prompt, stream=True, generation_config={"max_output_tokens": 100})
 
         full_response = ""
         for response in responses:
@@ -1128,31 +1128,9 @@ def gemini_chat():
         # Limit response to 100 words
         short_response = " ".join(full_response.split()[:100])
 
-        # If using voice output mode with user's voice, generate audio file
+        # Backend ElevenLabs generation bypassed to reduce response latency.
+        # The React frontend generates and plays the voice client-side.
         audio_url = None
-        if output_mode == "voice":
-            # Get user's voice profile
-            voice_profile = voice_profiles.find_one({"email": user_email})
-
-            if use_user_voice and voice_profile and "voiceId" in voice_profile:
-                # Generate speech using user's voice profile
-                voice_id = voice_profile["voiceId"]
-            else:
-                # Use default voice
-                voice_id = DEFAULT_VOICE_ID
-
-            # Generate speech with ElevenLabs
-            audio_data = generate_speech_with_elevenlabs(short_response, voice_id)
-
-            if audio_data:
-                # Save the audio file
-                filename = f"{uuid.uuid4()}.mp3"
-                file_path = os.path.join(tempfile.gettempdir(), filename)
-
-                with open(file_path, "wb") as f:
-                    f.write(audio_data)
-
-                audio_url = f"/api/audio/{filename}"
 
         return jsonify({
             "response": short_response,
@@ -1162,6 +1140,8 @@ def gemini_chat():
         })
 
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         return jsonify({"error": str(e)}), 500
 
 def generate_speech_with_elevenlabs(text, voice_id):

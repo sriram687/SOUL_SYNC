@@ -363,16 +363,58 @@ class PushUpCounter:
 
         return stats
 
-def test_pushup_counter_live():
+def test_pushup_counter_live(user_id="default_user", session_id=None):
     """Test function that uses live camera feed to demonstrate all PushUpCounter functions"""
-    print("Starting PushUpCounter live test...")
+    print(f"Starting PushUpCounter live test for user: {user_id}, session: {session_id}")
+
+    import json
 
     # Create an instance of PushUpCounter
-    counter = PushUpCounter("test_user")
-    print(f"Created counter for user: {counter.user_id}")
+    counter = PushUpCounter(user_id)
+    if session_id:
+        counter.session_id = session_id
+    print(f"Created counter for user: {counter.user_id} with session: {counter.session_id}")
+
+    # Path for JSON status file
+    stats_dir = os.path.dirname(os.path.abspath(__file__))
+    stats_file_path = os.path.join(stats_dir, f"session_stats_{counter.session_id}.json")
+
+    # Helper to write stats
+    def write_stats(status='running'):
+        try:
+            current_stats = counter.get_session_stats()
+            total = current_stats['metrics']['total_reps']
+            correct = current_stats['reps_completed']
+            accuracy = int((correct / total) * 100) if total > 0 else 100
+            
+            output_data = {
+                'reps_completed': current_stats['reps_completed'],
+                'incorrect_forms': current_stats['incorrect_forms'],
+                'calories_burned': float(current_stats['calories_burned']),
+                'form_accuracy': accuracy,
+                'elapsed_time': int(time.time() - counter.start_time),
+                'status': status
+            }
+            temp_path = stats_file_path + ".tmp"
+            with open(temp_path, "w") as f:
+                json.dump(output_data, f)
+            os.replace(temp_path, stats_file_path)
+        except Exception as e:
+            print(f"Error writing stats: {e}")
 
     # Initialize the webcam
     cap = cv2.VideoCapture(0)  # 0 is usually the default webcam
+    if not cap.isOpened():
+        print("Failed to open webcam.")
+        try:
+            with open(stats_file_path, "w") as f:
+                json.dump({
+                    'status': 'error',
+                    'message': 'Failed to open webcam. Please check your camera connection.'
+                }, f)
+        except Exception as e:
+            print(f"Error writing error stats: {e}")
+        return False
 
     # Set camera resolution for better performance
     cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
@@ -389,6 +431,8 @@ def test_pushup_counter_live():
     print("  Press 'a' to toggle angle display")
     print("  Press 's' to toggle skeleton display")
 
+    last_write_time = 0
+
     with mp_pose.Pose(
         min_detection_confidence=0.8,
         min_tracking_confidence=0.8) as pose:
@@ -403,6 +447,12 @@ def test_pushup_counter_live():
 
             # Process frame - this calls multiple functions internally
             output_image = counter.process_frame(frame, pose)
+
+            # Write stats periodically
+            now = time.time()
+            if now - last_write_time > 0.5:
+                write_stats('running')
+                last_write_time = now
 
             # Display runtime info
             elapsed = int(time.time() - start_time)
@@ -429,6 +479,7 @@ def test_pushup_counter_live():
                 counter.start_time = time.time()
                 counter.form_issues_log = []
                 print("\nCounter reset")
+                write_stats('running')
             elif key == ord('d'):
                 counter.debug_mode = not counter.debug_mode
                 print(f"\nDebug mode: {counter.debug_mode}")
@@ -443,6 +494,9 @@ def test_pushup_counter_live():
     cap.release()
     cv2.destroyAllWindows()
 
+    # Write final stats
+    write_stats('terminated')
+
     # Get final session stats
     print("\n\nFinal Session Statistics:")
     stats = counter.get_session_stats()
@@ -455,8 +509,16 @@ def test_pushup_counter_live():
             print(f"{key}: {value}")
 
     print("\nAll PushUpCounter functions have been tested with live camera feed!")
+    
+    # Try to clean up the status file after a delay or just leave it for the API to read final stats
     return True
 
 if __name__ == "__main__":
+    import argparse
+    parser = argparse.ArgumentParser(description="Run push-up counter live demo.")
+    parser.add_argument("--user_id", type=str, default="default_user", help="User ID")
+    parser.add_argument("--session_id", type=str, default=None, help="Session ID")
+    args = parser.parse_args()
+
     # Run the test function with live camera
-    test_pushup_counter_live()
+    test_pushup_counter_live(user_id=args.user_id, session_id=args.session_id)

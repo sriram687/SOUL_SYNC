@@ -165,28 +165,30 @@ def start_direct_counter():
         import subprocess
         import sys
         import os
-        import threading
 
         # Get the current directory
         current_dir = os.path.dirname(os.path.abspath(__file__))
 
         # Construct the path to push_counter.py
         script_path = os.path.join(current_dir, 'push_counter.py')
+        
+        session_id = str(uuid.uuid4())
 
         # Start the process - use shell=True on Windows to open in a new window
         if os.name == 'nt':  # Windows
-            process = subprocess.Popen([sys.executable, script_path],
+            process = subprocess.Popen([sys.executable, script_path, '--user_id', user_id, '--session_id', session_id],
                                       creationflags=subprocess.CREATE_NEW_CONSOLE)
         else:  # Linux/Mac
-            process = subprocess.Popen([sys.executable, script_path],
-                                      stdout=subprocess.PIPE,
-                                      stderr=subprocess.PIPE,
+            log_dir = os.path.join(current_dir, 'logs')
+            os.makedirs(log_dir, exist_ok=True)
+            log_file_path = os.path.join(log_dir, f'push_counter_{session_id}.log')
+            log_file = open(log_file_path, 'w')
+            process = subprocess.Popen([sys.executable, script_path, '--user_id', user_id, '--session_id', session_id],
+                                      stdout=log_file,
+                                      stderr=log_file,
                                       text=True)
 
-
-        # Store the process ID and create a session ID
         process_id = process.pid
-        session_id = str(uuid.uuid4())
 
         # Store the process in our dictionary
         running_counters[session_id] = {
@@ -226,6 +228,31 @@ def get_direct_counter_stats():
     try:
         session_id = request.args.get('session_id')
 
+        # Auto-recover session details if backend restarted but stats file exists
+        if session_id and session_id not in running_counters:
+            current_dir = os.path.dirname(os.path.abspath(__file__))
+            stats_file_path = os.path.join(current_dir, f"session_stats_{session_id}.json")
+            if os.path.exists(stats_file_path):
+                try:
+                    import json
+                    with open(stats_file_path, 'r') as f:
+                        data = json.load(f)
+                    
+                    running_counters[session_id] = {
+                        'process': None,  # No process handle after restart, but stats are file-driven
+                        'user_id': 'default_user',
+                        'start_time': datetime.now().isoformat(),
+                        'pid': None,
+                        'stats': {
+                            'reps_completed': data.get('reps_completed', 0),
+                            'incorrect_forms': data.get('incorrect_forms', 0),
+                            'calories_burned': data.get('calories_burned', 0.0),
+                            'form_accuracy': data.get('form_accuracy', 100)
+                        }
+                    }
+                except Exception as e:
+                    print(f"[get_direct_counter_stats] Recovery error: {e}")
+
         if not session_id or session_id not in running_counters:
             return jsonify({
                 'status': 'error',
@@ -234,21 +261,70 @@ def get_direct_counter_stats():
 
         # Get the process info
         process_info = running_counters[session_id]
-        process = process_info['process']
+        process = process_info.get('process')
 
-        # Check if the process is still running
-        if process.poll() is not None:
-            # Process has terminated
+        # If process terminated but we have a final stats file, return that
+        if process and process.poll() is not None:
+            current_dir = os.path.dirname(os.path.abspath(__file__))
+            stats_file_path = os.path.join(current_dir, f"session_stats_{session_id}.json")
+            if os.path.exists(stats_file_path):
+                try:
+                    import json
+                    with open(stats_file_path, 'r') as f:
+                        data = json.load(f)
+                    return jsonify({
+                        'status': 'success',
+                        'stats': {
+                            'reps_completed': data.get('reps_completed', 0),
+                            'incorrect_forms': data.get('incorrect_forms', 0),
+                            'calories_burned': data.get('calories_burned', 0.0),
+                            'form_accuracy': data.get('form_accuracy', 100)
+                        },
+                        'elapsed_time': data.get('elapsed_time', 0),
+                        'note': 'Process terminated'
+                    })
+                except Exception:
+                    pass
+
             return jsonify({
                 'status': 'error',
                 'message': 'Push counter process has terminated'
             }), 400
 
-        # Since we can't directly get stats from the process (it's running in a separate window),
-        # we'll return placeholder stats that would normally be updated by some IPC mechanism
-        # In a real implementation, you'd use a shared file, database, or other IPC method
+        # Check for real-time stats JSON file written by push_counter.py
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        stats_file_path = os.path.join(current_dir, f"session_stats_{session_id}.json")
+        
+        if os.path.exists(stats_file_path):
+            try:
+                import json
+                with open(stats_file_path, 'r') as f:
+                    data = json.load(f)
+                
+                # Check for camera/webcam error status
+                if data.get('status') == 'error':
+                    return jsonify({
+                        'status': 'error',
+                        'message': data.get('message', 'Failed to open webcam')
+                    }), 400
 
-        # For demo purposes, we'll simulate increasing reps over time
+                # Update in-memory stats
+                process_info['stats'] = {
+                    'reps_completed': data.get('reps_completed', 0),
+                    'incorrect_forms': data.get('incorrect_forms', 0),
+                    'calories_burned': data.get('calories_burned', 0.0),
+                    'form_accuracy': data.get('form_accuracy', 100)
+                }
+                
+                return jsonify({
+                    'status': 'success',
+                    'stats': process_info['stats'],
+                    'elapsed_time': data.get('elapsed_time', 0)
+                })
+            except Exception as e:
+                print(f"[get_direct_counter_stats] JSON read error: {e}")
+
+        # Fallback to simulated stats if JSON doesn't exist yet
         start_time = datetime.fromisoformat(process_info['start_time'])
         elapsed_seconds = (datetime.now() - start_time).total_seconds()
 
@@ -258,9 +334,9 @@ def get_direct_counter_stats():
         # Update the stats
         process_info['stats'] = {
             'reps_completed': simulated_reps,
-            'incorrect_forms': int(simulated_reps * 0.2),  # 20% incorrect form
-            'calories_burned': simulated_reps * 0.5,  # 0.5 calories per rep
-            'form_accuracy': 80  # 80% accuracy
+            'incorrect_forms': int(simulated_reps * 0.2),
+            'calories_burned': simulated_reps * 0.5,
+            'form_accuracy': 80
         }
 
         # Return the stats
@@ -283,6 +359,15 @@ def stop_direct_counter():
     try:
         session_id = request.json.get('session_id')
 
+        # Clean up JSON files first
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        stats_file_path = os.path.join(current_dir, f"session_stats_{session_id}.json")
+        if session_id and os.path.exists(stats_file_path):
+            try:
+                os.remove(stats_file_path)
+            except Exception:
+                pass
+
         if not session_id or session_id not in running_counters:
             return jsonify({
                 'status': 'error',
@@ -291,10 +376,10 @@ def stop_direct_counter():
 
         # Get the process info
         process_info = running_counters[session_id]
-        process = process_info['process']
+        process = process_info.get('process')
 
         # Try to terminate the process
-        if process.poll() is None:  # Process is still running
+        if process and process.poll() is None:  # Process is still running
             process.terminate()
 
             # Wait a bit for the process to terminate
@@ -316,6 +401,7 @@ def stop_direct_counter():
             'message': 'Push counter stopped',
             'final_stats': final_stats
         })
+
 
     except Exception as e:
         print(f'[stop_direct_counter] Error: {str(e)}')
@@ -1006,7 +1092,7 @@ def search_food():
             'api_key': USDA_API_KEY,
             'query': query,
             'pageSize': 10,
-            'dataType': ["Survey (FNDDS)", "Branded"]
+            'dataType': "Survey (FNDDS),Branded"
         }
 
         response = requests.get(search_url, params=params)
@@ -1187,7 +1273,7 @@ def autocomplete_food():
         params = {
             'api_key': USDA_API_KEY,
             'query': query,
-            'dataType': ["Survey (FNDDS)", "Branded"]
+            'dataType': "Survey (FNDDS),Branded"
         }
 
         response = requests.get(autocomplete_url, params=params)

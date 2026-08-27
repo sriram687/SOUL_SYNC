@@ -15,8 +15,6 @@ build/
 out/
 
 # Environment files
-.env
-.env.local
 .env.development.local
 .env.test.local
 .env.production.local
@@ -47,3 +45,7 @@ Thumbs.db
 # Project-specific temp/scratch files
 requirements_utf8.txt
 scratch_*.py
+branch_structure.json
+temp_auto_push.bat
+temp_interactive_push.bat
+config.bat
